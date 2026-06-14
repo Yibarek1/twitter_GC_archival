@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Offline archive viewer for Twitter/X group DM conversations — search, browse, and explore your group chat history with full media support." />
+  <meta name="theme-color" content="#05070d" />
+  <title>Group Chat Archive</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="boot" class="boot">
+    <div class="skeleton-wrap">
+      <div class="skeleton-msg"><div class="skeleton-av"></div><div class="skeleton-bubble" style="width:40%"></div></div>
+      <div class="skeleton-msg"><div class="skeleton-av"></div><div class="skeleton-bubble" style="width:70%"></div></div>
+      <div class="skeleton-msg me"><div class="skeleton-bubble" style="width:50%"></div></div>
+      <div class="skeleton-msg"><div class="skeleton-av"></div><div class="skeleton-bubble" style="width:30%"></div></div>
+    </div>
+  </div>
+
+  <div id="app" class="app" hidden>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <!-- The real group photo (gc_photo.jpg) is private/gitignored; the
+             committed app uses a neutral gradient mark. -->
+        <div class="brand-mark">💬</div>
+        <div class="brand-text">
+          <div class="brand-title" id="brand-title">Archive</div>
+          <div class="brand-sub" id="brand-sub">group chat</div>
+        </div>
+      </div>
+      <div class="conv-picker" id="conv-picker" hidden></div>
+      <nav class="nav" id="nav">
+        <div class="nav-section">
+          <div class="nav-label">Explore</div>
+          <button class="nav-item active" data-view="search"><span class="nav-ico">⌕</span> Search</button>
+          <button class="nav-item" data-view="timeline"><span class="nav-ico">≡</span> Timeline</button>
+          <button class="nav-item" data-view="gallery"><span class="nav-ico">🖼</span> Gallery</button>
+          <button class="nav-item" data-view="pins"><span class="nav-ico">★</span> Pinned</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Highlights</div>
+          <button class="nav-item" data-view="hof"><span class="nav-ico">🏆</span> Hall of Fame</button>
+          <button class="nav-item" data-view="wrapped"><span class="nav-ico">🎁</span> Wrapped</button>
+          <button class="nav-item" data-view="capsule"><span class="nav-ico">⏳</span> Capsule</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Analytics</div>
+          <button class="nav-item" data-view="stats"><span class="nav-ico">▤</span> Stats</button>
+          <button class="nav-item" data-view="threads"><span class="nav-ico">🧵</span> Threads</button>
+          <button class="nav-item" data-view="moods"><span class="nav-ico">💫</span> Moods</button>
+          <button class="nav-item" data-view="sleep"><span class="nav-ico">🌙</span> Sleep</button>
+          <button class="nav-item" data-view="emoji-story"><span class="nav-ico">🎭</span> Emoji DNA</button>
+          <button class="nav-item" data-view="chains"><span class="nav-ico">⛓</span> Chains</button>
+          <button class="nav-item" data-view="firsts"><span class="nav-ico">🌅</span> Firsts</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Fun & Games</div>
+          <button class="nav-item" data-view="battles"><span class="nav-ico">⚔</span> Battles</button>
+          <button class="nav-item" data-view="quiz"><span class="nav-ico">🧠</span> Quiz</button>
+          <button class="nav-item" id="nav-random"><span class="nav-ico">🎲</span> Random Quote</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Config</div>
+          <button class="nav-item" data-view="people"><span class="nav-ico">◉</span> People</button>
+          <button class="nav-item" data-view="settings"><span class="nav-ico">⚙</span> Settings</button>
+        </div>
+      </nav>
+      <div class="sidebar-foot" id="sidebar-foot"></div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div id="view-search" class="view"></div>
+      <div id="view-timeline" class="view" hidden></div>
+      <div id="view-gallery" class="view" hidden></div>
+      <div id="view-hof" class="view" hidden></div>
+      <div id="view-pins" class="view" hidden></div>
+      <div id="view-capsule" class="view" hidden></div>
+      <div id="view-wrapped" class="view" hidden></div>
+      <div id="view-threads" class="view" hidden></div>
+      <div id="view-quiz" class="view" hidden></div>
+      <div id="view-moods" class="view" hidden></div>
+      <div id="view-battles" class="view" hidden></div>
+      <div id="view-sleep" class="view" hidden></div>
+      <div id="view-emoji-story" class="view" hidden></div>
+      <div id="view-chains" class="view" hidden></div>
+      <div id="view-firsts" class="view" hidden></div>
+      <div id="view-stats" class="view" hidden></div>
+      <div id="view-people" class="view" hidden></div>
+      <div id="view-settings" class="view" hidden></div>
+    </main>
+  </div>
+
+  <!-- Synthetic demo data ships with the repo; the real (gitignored) data.js,
+       if present, loads second and overrides window.CHAT_DATA. -->
+  <script src="data.sample.js"></script>
+  <script src="data.js" onerror="void 0"></script>
+  <!-- Optional, gitignored: window.LOCAL_NAMES / window.LOCAL_PFPS overrides -->
+  <script src="names.local.js" onerror="void 0"></script>
+  <script src="lib/fuse.min.js"></script>
+  <script src="lib/chart.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
