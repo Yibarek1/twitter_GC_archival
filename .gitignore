@@ -35,6 +35,9 @@ node_modules/
 # Internal planning brief (references real ids / private data)
 PLAN.md
 
+# Session report (not part of the published app)
+SCHEDULED_TASK_RESULTS.md
+
 # Scraper capture artifacts
 gc-scrape-*.json
 sender-map.json
