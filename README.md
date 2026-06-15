@@ -1,4 +1,4 @@
-# 💬 Group Chat Archive
+# Group Chat Archive
 
 A **dependency-free, fully offline** browser for Twitter/X **group chat** (group
 DM) exports. Drop in your export, run one build script, and explore years of
@@ -13,24 +13,24 @@ keys, no internet. Have several group chats? A picker switches between them.
 
 ---
 
-## ✨ Features
+## Features
 
-- **🔎 Fuzzy search** (Fuse.js) with filters: `has:media`, `has:links`,
+- **Fuzzy search** (Fuse.js) with filters: `has:media`, `has:links`,
   `from:name`, `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting,
   list/grid views, saved searches, and CSV/JSON export.
-- **🗂 Multiple group chats** — a conversation picker switches between every
+- **Multiple group chats** — a conversation picker switches between every
   group in your export. Every view is scoped to the selected group.
-- **≡ Virtual timeline** — scrolls 100K+ messages smoothly with a date scrubber
+- **Virtual timeline** — scrolls 100K+ messages smoothly with a date scrubber
   and jump-to-date.
-- **🖼 Gallery** of every photo & video, with a lightbox.
-- **🏆 Hall of Fame** — most-reacted messages, podium + leaderboards by year.
-- **🎁 Wrapped** — animated year-in-review slideshows.
-- **▤ Stats** — per-person activity, word clouds, milestones, busiest hours,
+- **Gallery** of every photo & video, with a lightbox.
+- **Hall of Fame** — most-reacted messages, podium + leaderboards by year.
+- **Wrapped** — animated year-in-review slideshows.
+- **Stats** — per-person activity, word clouds, milestones, busiest hours,
   superlatives.
-- **🧵 Threads · ⛓ Chains · ⚔ Battles** — playful analytics & head-to-head.
-- **★ Bookmarks**, **⌘K command palette**, **⏳ Time Capsule** ("on this day"),
-  **🎲 Random Quote**, context-peek, and quote-card PNG export.
-- **🎨 Theming** — black + blue, customizable accent, density, and theme shuffle;
+- **Threads, Chains, Battles** — playful analytics & head-to-head.
+- **Bookmarks**, a **Cmd/Ctrl-K command palette**, **Time Capsule** ("on this
+  day"), **Random Quote**, context-peek, and quote-card PNG export.
+- **Theming** — black + blue, customizable accent, density, and theme shuffle;
   all preferences saved to `localStorage`.
 
 Everything runs from `file://` — just double-click `index.html`. The included
@@ -39,7 +39,7 @@ Everything runs from `file://` — just double-click `index.html`. The included
 
 ---
 
-## 🚀 Quick start (demo, zero real data)
+## Quick start (demo, zero real data)
 
 ```bash
 git clone <this-repo>
@@ -47,7 +47,7 @@ cd twitter_project
 # open the demo straight away:
 #   double-click index.html
 # or, if your browser blocks local media over file://:
-node scripts/server.js      # → http://localhost:8765
+node scripts/server.js      # -> http://localhost:8765
 ```
 
 You'll get a 3-group synthetic demo. Regenerate the demo data anytime:
@@ -58,29 +58,32 @@ node scripts/make_sample.js     # writes data.sample.js + sample_media/
 
 ---
 
-## 📥 Using your own export
+## Using your own export
 
-Request your archive from X (**Settings → Your account → Download an archive of
-your data**) and unzip it. You'll use the group export `.js` and its media
-folder:
+Request your archive from X (**Settings -> Your account -> Download an archive of
+your data**) and unzip it. The group chat archive needs all three of these:
 
-- `direct-messages-group.js` — group chat conversations (full content)
-- `direct_messages_group_media/` — group chat media
-- *(1:1 DM files and the `*-headers.js` metadata files are ignored)*
+- `direct-messages-group.js` — group chat conversations (full message content)
+- `direct-messages-group-headers.js` — group metadata (completes the participant
+  roster and join/leave/name events)
+- `direct_messages_group_media/` — group chat media (photos & videos)
+
+*(1:1 DM files are ignored — this tool is group-chats only.)*
 
 ### Option A — Setup wizard (recommended)
 
-The wizard writes config, copies your media, runs the build, restores the group
-photo, and walks you through naming everyone — all from the browser. It needs the
-local server (writing files needs Node):
+The wizard writes config, copies your files and media, runs the build, restores
+the group photo, and walks you through naming everyone — all from the browser. It
+needs the local server (writing files needs Node):
 
 ```bash
-node scripts/server.js                 # → http://localhost:8765
+node scripts/server.js                 # -> http://localhost:8765
 # then open  http://localhost:8765/setup.html
 ```
 
-1. **Source** — click **Browse…** to pick your `direct-messages-group.js` and your
-   media folder (both required; native file dialogs on Windows), then **Build**.
+1. **Source** — click **Browse…** to pick your `direct-messages-group.js`, your
+   `direct-messages-group-headers.js`, and your media folder (all three required;
+   native file dialogs on Windows), then **Build**.
 2. **Group** *(optional)* — set the group name + photo (becomes the sidebar mark).
 3. **People** *(optional)* — each participant card shows sample messages and a few
    pieces of media they shared (Twitter/X links excluded — they don't help you
@@ -95,15 +98,17 @@ double-clicking `index.html`.
 ### Option B — manual build
 
 ```bash
-# drop direct-messages-group.js + direct_messages_group_media/ into exports/
+# drop direct-messages-group.js + direct-messages-group-headers.js
+# + direct_messages_group_media/ into exports/
 node scripts/build.js
 ```
 
 `build.js` parses the group export, emits an index of **every group**
 conversation it finds (deduped by message id, media resolved by filename), and
 writes `data.js`. Re-run it any time you add a newer export — history is merged,
-never lost. (If `personal_data/config.json` exists, the build follows it and
-writes `personal_data/data.js` instead.)
+never lost. (If `personal_data/config.json` exists, the build follows it — using
+the headers file it records to complete the participant roster — and writes
+`personal_data/data.js` instead.)
 
 ### Naming participants
 
@@ -117,7 +122,7 @@ profile picture, and mark "This is me" — all saved to `localStorage` (works fr
 
 ---
 
-## 📡 Live capture (optional)
+## Live capture (optional)
 
 X migrated DMs to the encrypted **XChat** UI, and encrypted messages aren't in
 data exports. A Tampermonkey userscript (documented in
@@ -126,7 +131,7 @@ data exports. A Tampermonkey userscript (documented in
 
 ---
 
-## 🗃 Data schema
+## Data schema
 
 `data.js` / `data.sample.js` define one global:
 
@@ -149,7 +154,7 @@ The viewer also accepts the older single-conversation shape
 
 ---
 
-## 🧱 Project layout
+## Project layout
 
 ```
 index.html          app shell + script loading
@@ -158,8 +163,8 @@ src/app.js          all UI logic (vanilla JS, no framework)
 src/styles.css      black + blue theme
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
-scripts/build.js    exports/config → data.js  (multi-group, merge-aware)
-scripts/make_sample.js   synthetic demo generator → data.sample.js + sample_media/
+scripts/build.js    exports/config -> data.js  (multi-group, merge-aware)
+scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 lib/                Fuse.js + Chart.js (vendored, MIT)
 data.sample.js      committed synthetic demo data
@@ -175,7 +180,7 @@ Built with [Fuse.js](https://www.fusejs.io/) and
 
 ---
 
-## 🔒 Privacy
+## Privacy
 
 This repository is designed to be published **without** any private data. Real
 messages, media, profile pictures, names, and packaged archives are listed in

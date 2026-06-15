@@ -10,7 +10,8 @@
  *   → open  http://localhost:8765/setup.html (first-run setup wizard)
  *
  * The wizard talks to three small JSON endpoints, all Node built-ins only:
- *   POST /api/source    point at raw .js + media → write config, copy media, build
+ *   POST /api/source    point at group .js + headers .js + media (all required)
+ *                       → write config, copy sources + media, build
  *   GET  /api/parts     participants + link-free sample messages + shared media
  *   POST /api/identity  names / pfps / GC photo / "this is you" → write local.js
  */
@@ -79,15 +80,24 @@ function copyMediaFlat(srcDir, destDir) {
   })(srcDir);
   return n;
 }
-// Open a native Windows file/folder picker and return the chosen absolute path
-// (files joined by "|", which is illegal in Windows paths so it's a safe
-// delimiter). Returns "" on cancel, or null when unsupported (non-Windows / no
-// PowerShell) so the caller can tell the user to type the path instead.
-function nativePick(kind) {
+// Open a native Windows file/folder picker and return the chosen absolute path.
+// `which` ("group" | "headers") only tailors the file dialog's title + filter —
+// the values are constant strings we control, so there's no injection risk.
+// Returns "" on cancel, or null when unsupported (non-Windows / no PowerShell)
+// so the caller can tell the user to type the path instead.
+function nativePick(kind, which) {
   if (process.platform !== "win32") return null;
-  const ps = kind === "folder"
-    ? "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.FolderBrowserDialog;$d.Description='Select your group media folder';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.SelectedPath)};$o.Dispose()"
-    : "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Filter='Twitter/X export (*.js)|*.js|All files (*.*)|*.*';$d.Multiselect=$true;$d.Title='Select your direct-messages-group.js';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write(($d.FileNames -join '|'))};$o.Dispose()";
+  let ps;
+  if (kind === "folder") {
+    ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.FolderBrowserDialog;$d.Description='Select your direct_messages_group_media folder';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.SelectedPath)};$o.Dispose()";
+  } else {
+    const headers = which === "headers";
+    const title = headers ? "Select direct-messages-group-headers.js" : "Select direct-messages-group.js";
+    const filter = headers
+      ? "Group headers (direct-messages-group-headers*.js)|direct-messages-group-headers*.js|JavaScript (*.js)|*.js|All files (*.*)|*.*"
+      : "Group messages (direct-messages-group*.js)|direct-messages-group*.js|JavaScript (*.js)|*.js|All files (*.*)|*.*";
+    ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Filter='" + filter + "';$d.Multiselect=$false;$d.Title='" + title + "';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.FileName)};$o.Dispose()";
+  }
   try {
     return execFileSync("powershell.exe", ["-STA", "-NoProfile", "-Command", ps], { encoding: "utf8", windowsHide: true }).trim();
   } catch (e) { return null; }
@@ -106,34 +116,38 @@ function readBuiltData() {
 
 /* ---- endpoint: point at source + build ----------------------------------- */
 function apiSource(body, res) {
-  const sourceJs = (Array.isArray(body.sourceJs) ? body.sourceJs : []).map((p) => String(p).trim()).filter(Boolean);
-  if (!sourceJs.length) return sendJSON(res, 400, { error: "Provide at least one source .js path." });
-  const missing = sourceJs.filter((p) => !fs.existsSync(path.isAbsolute(p) ? p : path.join(ROOT, p)));
-  if (missing.length) return sendJSON(res, 400, { error: "Source file(s) not found: " + missing.join(", ") });
-
+  // All three pieces of the group export are required.
+  const groupJs = body.groupJs ? String(body.groupJs).trim() : "";
+  const headersJs = body.headersJs ? String(body.headersJs).trim() : "";
   const mediaDirIn = body.mediaDir ? String(body.mediaDir).trim() : "";
-  if (!mediaDirIn) return sendJSON(res, 400, { error: "A media folder is required." });
-  let mediaCopied = 0;
+  if (!groupJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group.js file." });
+  if (!headersJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group-headers.js file." });
+  if (!mediaDirIn) return sendJSON(res, 400, { error: "Choose your direct_messages_group_media folder." });
+
+  const absOf = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p));
+  const groupAbs = absOf(groupJs), headersAbs = absOf(headersJs), mediaAbs = absOf(mediaDirIn);
+  if (!fs.existsSync(groupAbs)) return sendJSON(res, 400, { error: "Messages file not found: " + groupJs });
+  if (!fs.existsSync(headersAbs)) return sendJSON(res, 400, { error: "Headers file not found: " + headersJs });
+  if (!fs.existsSync(mediaAbs) || !fs.statSync(mediaAbs).isDirectory()) return sendJSON(res, 400, { error: "Media folder not found: " + mediaDirIn });
+
   const cfg = loadConfig();
 
-  // Copy the source export(s) into personal_data/source/ so ALL private data
-  // lives under personal_data/ (the export is just as private as the messages).
+  // Copy every source into personal_data/source/ so ALL private data lives under
+  // personal_data/ (the export is just as private as the messages).
   const srcDir = path.join(PERSONAL, "source");
   fs.mkdirSync(srcDir, { recursive: true });
-  cfg.sourceJs = sourceJs.map((p) => {
-    const abs = path.isAbsolute(p) ? p : path.join(ROOT, p);
+  const copyInto = (abs) => {
     const destRel = "personal_data/source/" + path.basename(abs);
     const dest = path.join(ROOT, destRel);
     if (path.resolve(abs) !== path.resolve(dest)) fs.copyFileSync(abs, dest);
     return destRel;
-  });
-  if (mediaDirIn) {
-    const abs = path.isAbsolute(mediaDirIn) ? mediaDirIn : path.join(ROOT, mediaDirIn);
-    if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return sendJSON(res, 400, { error: "Media folder not found: " + mediaDirIn });
-    const dest = path.join(PERSONAL, "media");
-    mediaCopied = copyMediaFlat(abs, dest);
-    cfg.mediaDir = "personal_data/media";
-  }
+  };
+  cfg.sourceJs = [copyInto(groupAbs)];   // message bodies (build parses these)
+  cfg.headersJs = copyInto(headersAbs);  // metadata only (roster + events)
+
+  // media is required → always copied
+  const mediaCopied = copyMediaFlat(mediaAbs, path.join(PERSONAL, "media"));
+  cfg.mediaDir = "personal_data/media";
   saveConfig(cfg);
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
@@ -244,9 +258,9 @@ function serveStatic(req, res) {
 }
 
 http.createServer(async (req, res) => {
-  const url = req.url.split("?")[0];
+  const [url, qs] = req.url.split("?");
   try {
-    if (req.method === "GET" && url === "/api/pick-file") { const p = nativePick("file"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
+    if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);
     if (req.method === "GET" && url === "/api/parts") return apiParts(res);

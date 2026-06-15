@@ -53,11 +53,12 @@ function needServer(host) {
 if (!SERVED) needServer($("#src-result"));
 
 /* ---- step 1: native pickers + build -------------------------------------- */
-async function pick(kind, fill) {
+async function pick(kind, fill, which) {
   if (!SERVED) { needServer($("#src-result")); return; }
   flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
   try {
-    const r = await fetch("/api/pick-" + kind);
+    const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder";
+    const r = await fetch(url);
     const j = await r.json();
     if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows — please paste the path instead.", "err"); return; }
     if (!j.path) { $("#src-result").hidden = true; return; }   // cancelled
@@ -67,18 +68,21 @@ async function pick(kind, fill) {
     flash($("#src-result"), "✗ " + e.message + " — is the server running? (node scripts/server.js)", "err");
   }
 }
-$("#src-browse").onclick = () => pick("file", (p) => { $("#src-js").value = p.split("|").join("\n"); });
+$("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; }, "group");
+$("#headers-browse").onclick = () => pick("file", (p) => { $("#src-headers").value = p; }, "headers");
 $("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; });
 
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
-  const sourceJs = $("#src-js").value.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+  const groupJs = $("#src-group").value.trim();
+  const headersJs = $("#src-headers").value.trim();
   const mediaDir = $("#src-media").value.trim();
-  if (!sourceJs.length) { flash($("#src-result"), "Choose at least one source .js file.", "err"); return; }
-  if (!mediaDir) { flash($("#src-result"), "Choose your media folder — it's required.", "err"); return; }
+  if (!groupJs) { flash($("#src-result"), "Choose your direct-messages-group.js file.", "err"); return; }
+  if (!headersJs) { flash($("#src-result"), "Choose your direct-messages-group-headers.js file.", "err"); return; }
+  if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
   try {
-    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceJs, mediaDir }) });
+    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupJs, headersJs, mediaDir }) });
     const j = await r.json();
     if (!r.ok) { flash($("#src-result"), "✗ " + (j.error || "Build failed"), "err"); return; }
     built = true;

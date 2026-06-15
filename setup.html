@@ -29,18 +29,23 @@
     <section class="setup-pane active" data-pane="1">
       <h2>1 · Point at your export</h2>
       <p class="setup-p">
-        Tell the build where your <b>raw Twitter/X group export</b> lives — both the
-        <code>.js</code> file <b>and</b> its media folder (photos &amp; videos) are
-        required. Click <b>Browse…</b> to pick them, or paste a path (relative to the
-        project root, or absolute).
+        From your unzipped Twitter/X archive, pick all three pieces of your group
+        export. Click <b>Browse…</b> for each (native pickers on Windows), or paste a
+        path. <b>All three are required.</b>
       </p>
-      <label class="setup-label">Source <code>.js</code> file(s)</label>
+      <label class="setup-label">Messages file <code>direct-messages-group.js</code> <span class="setup-req">required</span></label>
       <div class="setup-pickrow">
-        <textarea id="src-js" class="setup-input setup-textarea" rows="2"
-          placeholder="exports/direct-messages-group.js"></textarea>
-        <button class="btn ghost setup-browse" id="src-browse">Browse…</button>
+        <input id="src-group" class="setup-input" type="text"
+          placeholder="direct-messages-group.js" />
+        <button class="btn ghost setup-browse" id="group-browse">Browse…</button>
       </div>
-      <label class="setup-label">Media folder <span class="setup-req">required</span></label>
+      <label class="setup-label">Headers file <code>direct-messages-group-headers.js</code> <span class="setup-req">required</span></label>
+      <div class="setup-pickrow">
+        <input id="src-headers" class="setup-input" type="text"
+          placeholder="direct-messages-group-headers.js" />
+        <button class="btn ghost setup-browse" id="headers-browse">Browse…</button>
+      </div>
+      <label class="setup-label">Media folder <code>direct_messages_group_media</code> <span class="setup-req">required</span></label>
       <div class="setup-pickrow">
         <input id="src-media" class="setup-input" type="text"
           placeholder="direct_messages_group_media" />

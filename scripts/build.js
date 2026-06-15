@@ -5,9 +5,11 @@
  *   - direct-messages.js        (1:1 DM conversations, full content)
  *   - direct-messages-group.js  (group DM conversations, full content)
  * — and emits an index of EVERY conversation it finds, instead of a single
- * hard-coded one. The `-headers` files (direct-message-headers.js /
- * direct-message-group-headers.js) are metadata-only and redundant when the
- * full files are present, so they are ignored.
+ * hard-coded one. When the setup wizard provides it (config.headersJs), the
+ * group `-headers` file (direct-messages-group-headers.js) is folded in too:
+ * it carries no message bodies, so it never adds empty messages, but it
+ * completes the participant roster (people who never sent a surviving message)
+ * plus any join/leave/name events. The 1:1 `-headers` file is ignored.
  *
  *  - Preserves previously-built history (reads the existing data.js as a baseline).
  *  - Reads exports in the project root PLUS any dropped into ./exports/.
@@ -151,7 +153,7 @@ function loadPrev() {
 const convos = new Map();  // convId -> { id, type, msgMap, eventMap }
 function getConvo(id) {
   let c = convos.get(id);
-  if (!c) { c = { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map() }; convos.set(id, c); }
+  if (!c) { c = { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map(), headerParts: new Set() }; convos.set(id, c); }
   return c;
 }
 
@@ -192,6 +194,44 @@ for (const file of exportFiles) {
     (conv.messages || []).forEach((m) => {
       if (m.messageCreate) { const r = rawToRec(m.messageCreate); if (r.i) c.msgMap.set(r.i, r); }
       else { const e = toEvent(m); if (e) c.eventMap.set(eventKey(e), e); }
+    });
+  });
+}
+
+// 2c) fold the group headers file (metadata-only). It has no message bodies, so
+// it never contributes messages — it only completes the participant roster
+// (people who never sent a surviving message) and any join/leave/name events.
+function findHeaders() {
+  if (config && config.headersJs) {
+    const f = resolveHere(config.headersJs);
+    return fs.existsSync(f) ? [f] : [];
+  }
+  return [];
+}
+const headerFiles = findHeaders();
+log("Header files found:", headerFiles.length, headerFiles.map((f) => path.relative(here, f)).join(", ") || "(none)");
+for (const file of headerFiles) {
+  let data;
+  try {
+    const raw = fs.readFileSync(file, "utf8").replace(/^window\.YTD\.[^=]*=\s*/, "").replace(/;\s*$/, "");
+    data = JSON.parse(raw);
+  } catch (e) { log("  ! headers parse error, skipped:", path.relative(here, file)); continue; }
+  data.forEach((d) => {
+    const conv = d.dmConversation; if (!conv || !conv.conversationId) return;
+    const c = getConvo(conv.conversationId);
+    (conv.messages || []).forEach((m) => {
+      if (m.messageCreate) {
+        const mc = m.messageCreate;
+        if (mc.senderId) c.headerParts.add(mc.senderId);
+        if (mc.recipientId) c.headerParts.add(mc.recipientId);
+      } else {
+        const e = toEvent(m);
+        if (e) {
+          c.eventMap.set(eventKey(e), e);
+          if (e.s) c.headerParts.add(e.s);
+          (e.ids || []).forEach((id) => c.headerParts.add(id));
+        }
+      }
     });
   });
 }
@@ -241,7 +281,7 @@ for (const c of convos.values()) {
   const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
   if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
 
-  const participants = [...new Set(msgs.map((m) => m.s))];
+  const participants = [...new Set([...msgs.map((m) => m.s), ...(c.headerParts || [])])];
   const nameEv = events.filter((e) => e.type === "name");
   const title = nameEv.length ? nameEv[nameEv.length - 1].name
     : (c.type === "group" ? "Group " + String(c.id).slice(-4) : null);

@@ -29,10 +29,10 @@ All real, per-user data lands in one git-ignored folder:
 
 ```
 personal_data/
-  config.json   { sourceJs:[paths], mediaDir, me, gcName, gcPhoto, names:{}, pfps:{} }
+  config.json   { sourceJs:[paths], headersJs, mediaDir, me, gcName, gcPhoto, names:{}, pfps:{} }
   data.js       built window.CHAT_DATA
   local.js      window.LOCAL_NAMES / LOCAL_PFPS / LOCAL_ME / LOCAL_GC{name,photo}
-  source/       copied raw export .js (direct-messages-group.js)
+  source/       copied raw export .js (direct-messages-group.js + -headers.js)
   media/        copied group media (referenced by root-relative path)
   pfps/         gc.<ext> + <participantId>.<ext> profile images
 ```
@@ -48,8 +48,8 @@ Server endpoints:
 
 | Endpoint | Role |
 |----------|------|
-| `GET /api/pick-file` · `GET /api/pick-folder` | Open a native Windows file/folder dialog (PowerShell `OpenFileDialog` / `FolderBrowserDialog`) and return the chosen absolute path, so users can browse instead of typing. Falls back to manual entry off Windows. |
-| `POST /api/source` | `{ sourceJs, mediaDir }` → validate (both **required**), copy the export(s) into `personal_data/source/` and media into `personal_data/media/`, write `config.json`, run `build.js`, return a summary. |
+| `GET /api/pick-file?for=group\|headers` · `GET /api/pick-folder` | Open a native Windows file/folder dialog (PowerShell `OpenFileDialog` / `FolderBrowserDialog`) and return the chosen absolute path, so users can browse instead of typing. `for` tailors the file dialog's title + filter. Falls back to manual entry off Windows. |
+| `POST /api/source` | `{ groupJs, headersJs, mediaDir }` → validate (all three **required** and existing), copy both `.js` into `personal_data/source/` and media into `personal_data/media/`, write `config.json` (`sourceJs` = group file, `headersJs` = headers file), run `build.js`, return a summary. |
 | `GET /api/parts` | Participants from the built data, each with up to 10 Twitter/X-link-free sample messages + a few shared-media paths. |
 | `POST /api/identity` | `{ me, gcName, gcPhoto, names, pfps }` (images as data URLs) → write files into `personal_data/pfps/`, then `personal_data/local.js`. |
 
@@ -57,7 +57,7 @@ Server endpoints:
 
 | File | Role |
 |------|------|
-| `scripts/build.js` | Node script. Parses the group export file (`direct-messages-group.js`), folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, merges optional XChat scrapes, and writes `data.js`. Honors `personal_data/config.json` (explicit source + media → `personal_data/data.js`) when present, else falls back to root/`exports/` discovery. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only — 1:1 DMs (id shape `a-b`) are skipped. |
+| `scripts/build.js` | Node script. Parses the group export file (`direct-messages-group.js`), folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, merges optional XChat scrapes, and writes `data.js`. When `config.headersJs` is set, also folds `direct-messages-group-headers.js` — metadata only, so it adds no messages but completes each conversation's participant roster (senders/joiners with no surviving message) and join/leave/name events. Honors `personal_data/config.json` (explicit source + media → `personal_data/data.js`) when present, else falls back to root/`exports/` discovery. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only — 1:1 DMs (id shape `a-b`) are skipped. |
 | `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `data.sample.js` (3 group chats, ~130 messages, tagged `__sample`) plus placeholder SVG media/avatars. Zero real data. |
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Loads `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/app.js`. |
