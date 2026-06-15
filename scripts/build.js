@@ -22,7 +22,21 @@ const fs = require("fs");
 const path = require("path");
 
 const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
-const OUT = path.join(here, "data.js");
+const PERSONAL = path.join(here, "personal_data");
+const CONFIG = path.join(PERSONAL, "config.json");
+
+// When the setup wizard has written personal_data/config.json, the build is
+// driven by it (explicit source .js + media folder) and writes into
+// personal_data/data.js. Otherwise we fall back to the original root/exports
+// discovery and write the root data.js — so the manual flow still works.
+function loadConfig() {
+  if (!fs.existsSync(CONFIG)) return null;
+  try { return JSON.parse(fs.readFileSync(CONFIG, "utf8")); }
+  catch (e) { return null; }
+}
+const config = loadConfig();
+const OUT = config ? path.join(PERSONAL, "data.js") : path.join(here, "data.js");
+const resolveHere = (p) => (path.isAbsolute(p) ? p : path.join(here, p));
 const log = (...a) => console.log(...a);
 const toMs = (iso) => (iso ? Date.parse(iso) : 0);
 
@@ -46,6 +60,10 @@ const isExportFile = (name) =>
   /^direct-messages-group(-.*)?\.js$/i.test(name) && !/headers/i.test(name);
 
 function findExports() {
+  // Config-driven: use exactly the source files the wizard pointed us at.
+  if (config && Array.isArray(config.sourceJs) && config.sourceJs.length) {
+    return config.sourceJs.map(resolveHere).filter((f) => fs.existsSync(f));
+  }
   const out = [];
   for (const f of fs.readdirSync(here)) if (isExportFile(f)) out.push(path.join(here, f));
   const exDir = path.join(here, "exports");
@@ -53,6 +71,13 @@ function findExports() {
   return out;
 }
 function findMediaDirs() {
+  // Config-driven: the wizard copies media into personal_data/media/ and stores
+  // that path. Media paths are emitted relative to the project root, so the app
+  // (served from the root) resolves them regardless of where data.js lives.
+  if (config && config.mediaDir) {
+    const d = resolveHere(config.mediaDir);
+    return fs.existsSync(d) ? [d] : [];
+  }
   const dirs = [];
   const main = path.join(here, "direct_messages_group_media");
   if (fs.existsSync(main)) dirs.push(main);
@@ -230,6 +255,7 @@ for (const c of convos.values()) {
 conversations.sort((a, b) => b.count - a.count);
 
 // 4) write
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: new Date().toISOString(), conversations }) + ";\n");
 
 const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);

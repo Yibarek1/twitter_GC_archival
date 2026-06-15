@@ -6,6 +6,9 @@
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
+// True only for the shipped synthetic demo (data.sample.js sets __sample). Any
+// real build (data.js / personal_data/data.js) overrides CHAT_DATA without it.
+const IS_SAMPLE = !!(DATA && DATA.__sample);
 const CONVOS = normalizeConvos(DATA);
 function normalizeConvos(d) {
   if (Array.isArray(d.conversations) && d.conversations.length) return d.conversations;
@@ -135,8 +138,13 @@ function initDateFormatters() {
 // the People tab (saved to localStorage). A private, gitignored names.local.js
 // may set window.LOCAL_NAMES / window.LOCAL_PFPS to override locally.
 const LOCAL_NAMES = (typeof window !== "undefined" && window.LOCAL_NAMES) || {};
+// Optional gitignored overrides written by the setup wizard (personal_data/local.js):
+//   window.LOCAL_ME  = "<id>"               — which participant is "you"
+//   window.LOCAL_GC  = { name, photo }       — the real group name + photo path
+const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
+const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 const DEFAULTS = {
-  names: {},
+  names: {}, pfps: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], timezone: "UTC"
 };
 let settings = loadSettings();
@@ -146,7 +154,9 @@ function loadSettings() {
     const saved = JSON.parse(localStorage.getItem("gca.settings") || "{}");
     const s = Object.assign({}, DEFAULTS, saved);
     s.names = Object.assign({}, DEFAULTS.names, saved.names || {});
+    s.pfps = Object.assign({}, DEFAULTS.pfps, saved.pfps || {});
     s.colors = Object.assign({}, DEFAULTS.colors, saved.colors || {});
+    if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
     s.pins = Array.isArray(saved.pins) ? saved.pins.slice() : [];   // own array, never share DEFAULTS.pins
     if (!Array.isArray(s.saved)) s.saved = [];
     return s;
@@ -252,9 +262,11 @@ function initials(name) {
   return (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
-// No committed profile pictures (the real ones are private). A gitignored
-// names.local.js may set window.LOCAL_PFPS = { "<id>": "profile_pictures/..." }.
-const PFPS = Object.assign({}, (typeof window !== "undefined" && window.LOCAL_PFPS) || {});
+// No committed profile pictures (the real ones are private). Sources, lowest to
+// highest priority: a gitignored local.js (window.LOCAL_PFPS, file paths) and
+// in-app uploads stored as data URLs in settings.pfps (so file:// editing works
+// without the server). Mutated in place by the People-tab pfp uploader.
+const PFPS = Object.assign({}, (typeof window !== "undefined" && window.LOCAL_PFPS) || {}, settings.pfps);
 
 function applyPfp(av, id) {
   av.dataset.id = id;
@@ -281,16 +293,27 @@ function pfpHtml(id, styleStr) {
 /* ---- Participants & derived stats (computed once) ------------------------ */
 // PARTS is computed per-conversation by activateConversation()
 let STATS = null, WORDS = null;
+// Messages containing a Twitter/X link are useless for telling people apart, so
+// they're excluded from the naming samples entirely (not only when they *start*
+// with a URL). A few shared-media paths are collected as extra memory jogs.
+const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
 function computeParticipants() {
   const map = new Map();
   for (let i = 0; i < N; i++) {
     const m = MSGS[i]; let p = map.get(m.s);
-    if (!p) { p = { id: m.s, count: 0, first: m.t, last: m.t, samples: [] }; map.set(m.s, p); }
+    if (!p) { p = { id: m.s, count: 0, first: m.t, last: m.t, samples: [], media: [] }; map.set(m.s, p); }
     p.count++; if (m.t < p.first) p.first = m.t; if (m.t > p.last) p.last = m.t;
-    if (p.samples.length < 80) { const t = (m.x || "").trim(); if (t.length > 14 && !/^https?:/.test(t)) p.samples.push(t); }
+    if (p.samples.length < 120) { const t = (m.x || "").trim(); if (t.length > 14 && !/^https?:/.test(t) && !X_LINK.test(t)) p.samples.push(t); }
+    if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k });
   }
   const arr = [...map.values()].sort((a, b) => b.count - a.count);
-  arr.forEach((p) => { p.samples.sort((a, b) => b.length - a.length); p.samples = p.samples.slice(0, 4); });
+  // Prefer longer (more distinctive) lines, dedupe, keep 5–10 per person.
+  arr.forEach((p) => {
+    const seen = new Set();
+    p.samples = p.samples.sort((a, b) => b.length - a.length)
+      .filter((s) => { const k = s.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 10);
+  });
   return arr;
 }
 
@@ -2125,8 +2148,33 @@ function renderPeople() {
 }
 function personCard(p) {
   const card = el("div", "person");
+
+  // Avatar + "change photo" uploader. Uploads are stored as data URLs in
+  // settings.pfps (localStorage), so editing works from file:// with no server.
+  const avWrap = el("div", "person-avwrap");
   const av = el("div", "av"); applyPfp(av, p.id);
-  card.appendChild(av);
+  const file = document.createElement("input");
+  file.type = "file"; file.accept = "image/*"; file.className = "pfp-file";
+  const pick = el("button", "btn sm ghost pfp-pick", PFPS[p.id] ? "Change photo" : "Add photo");
+  pick.onclick = () => file.click();
+  file.addEventListener("change", () => {
+    const f = file.files && file.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result;
+      settings.pfps[p.id] = url; PFPS[p.id] = url; saveSettings();
+      renderPeople();
+      if (typeof updateBrand === "function") updateBrand();
+    };
+    reader.readAsDataURL(f);
+  });
+  avWrap.appendChild(av); avWrap.appendChild(pick); avWrap.appendChild(file);
+  if (PFPS[p.id]) {
+    const rm = el("button", "btn sm ghost pfp-rm", "Remove");
+    rm.onclick = () => { delete settings.pfps[p.id]; delete PFPS[p.id]; saveSettings(); renderPeople(); updateBrand(); };
+    avWrap.appendChild(rm);
+  }
+  card.appendChild(avWrap);
 
   const main = el("div", "person-main");
   const row = el("div", "person-row");
@@ -2151,7 +2199,22 @@ function personCard(p) {
     p.samples.forEach((s) => sw.appendChild(el("div", "sample", esc(s))));
     main.appendChild(sw);
   }
-  
+
+  // A few media this person shared — extra memory jogs for naming them.
+  if (p.media && p.media.length) {
+    const mw = el("div", "person-media");
+    p.media.forEach((it) => {
+      if (it.k === "vid") {
+        const v = el("video", "person-media-thumb"); v.src = it.m; v.muted = true; v.preload = "metadata";
+        mw.appendChild(v);
+      } else {
+        const img = el("img", "person-media-thumb"); img.src = it.m; img.loading = "lazy"; img.alt = "";
+        mw.appendChild(img);
+      }
+    });
+    main.appendChild(mw);
+  }
+
   const simRes = el("div", "sample", "");
   simRes.style.marginTop = "8px";
   simRes.style.color = "var(--accent)";
@@ -2417,7 +2480,23 @@ function convLabel(c) {
 
 function updateBrand() {
   const nameEv = EVENTS.filter((e) => e.type === "name");
-  const title = (CONV && CONV.title) || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(CONV));
+  const gcName = (LOCAL_GC && LOCAL_GC.name) || settings.gcName;
+  const title = gcName || (CONV && CONV.title) || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(CONV));
+  // Restore the real group photo on the sidebar brand mark when present.
+  const mark = document.querySelector(".brand-mark");
+  const gcPhoto = (LOCAL_GC && LOCAL_GC.photo) || settings.gcPhoto;
+  if (mark) {
+    if (gcPhoto) {
+      mark.textContent = "";
+      mark.style.backgroundImage = `url('${gcPhoto}')`;
+      mark.style.backgroundSize = "cover";
+      mark.style.backgroundPosition = "center";
+      mark.style.backgroundRepeat = "no-repeat";
+    } else {
+      mark.style.backgroundImage = "";
+      if (!mark.textContent) mark.textContent = "💬";
+    }
+  }
   document.getElementById("brand-title").textContent = title || "Group Chat";
   document.getElementById("brand-sub").textContent = fmtNum(N) + " messages";
   document.getElementById("sidebar-foot").innerHTML =
@@ -2478,6 +2557,52 @@ function init() {
   showOnThisDayToast();
   const lastView = localStorage.getItem("gca.lastView");
   setView((lastView && ["search","timeline","stats","people","settings","capsule","gallery","pins","hof","wrapped","threads","battles","chains"].includes(lastView)) ? lastView : "search");
+  maybeShowOnboarding();
+}
+
+// First-run prompt: shown while the demo data is loaded, or when real data is
+// loaded but nobody has been named / marked as "you" yet. Dismissible; the
+// choice is remembered so it never nags.
+function maybeShowOnboarding() {
+  let dismissed = false;
+  try { dismissed = localStorage.getItem("gca.onboarded") === "1"; } catch (e) {}
+  if (dismissed) return;
+  const named = Object.keys(settings.names).length > 0 || Object.keys(LOCAL_NAMES).length > 0;
+  const firstRun = IS_SAMPLE || (!settings.me && !named);
+  if (!firstRun) return;
+
+  const ov = el("div", "onboard");
+  ov.innerHTML = `
+    <div class="onboard-card">
+      <div class="onboard-title">Welcome to your Group Chat Archive 💬</div>
+      <div class="onboard-body">
+        ${IS_SAMPLE
+          ? `You're looking at <b>synthetic demo data</b>. To load your own Twitter/X
+             group chat export, run the one-time <b>setup wizard</b> — it points the
+             build at your raw <code>.js</code> + media, restores the group photo, and
+             helps you name everyone.`
+          : `Your archive is loaded, but no one's named yet. Open the <b>setup wizard</b>
+             for a guided walkthrough, or jump to the <b>People</b> tab to name
+             participants and mark which one is you.`}
+      </div>
+      <div class="onboard-note">The wizard needs the local server: run
+        <code>node scripts/server.js</code> and open
+        <code>localhost:8765/setup.html</code>.</div>
+      <div class="onboard-actions">
+        <a class="btn primary" href="setup.html">Open setup wizard</a>
+        <button class="btn ghost" id="onboard-people">Go to People tab</button>
+        <button class="btn ghost" id="onboard-dismiss">Maybe later</button>
+      </div>
+      <label class="onboard-dontshow"><input type="checkbox" id="onboard-never"> Don't show this again</label>
+    </div>`;
+  const close = () => {
+    if (ov.querySelector("#onboard-never").checked) { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) {} }
+    ov.remove();
+  };
+  ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+  ov.querySelector("#onboard-people").onclick = () => { close(); setView("people"); };
+  ov.querySelector("#onboard-dismiss").onclick = close;
+  document.body.appendChild(ov);
 }
 
 /* ===========================================================================

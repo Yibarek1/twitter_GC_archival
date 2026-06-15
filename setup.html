@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Setup · Group Chat Archive</title>
+  <link rel="stylesheet" href="src/styles.css" />
+  <link rel="stylesheet" href="src/setup.css" />
+</head>
+<body class="setup-body">
+  <div class="setup-shell">
+    <header class="setup-head">
+      <div class="brand-mark setup-mark">💬</div>
+      <div>
+        <div class="setup-title">Set up your archive</div>
+        <div class="setup-sub">One-time wizard · runs over the local server</div>
+      </div>
+    </header>
+
+    <ol class="setup-steps" id="steps">
+      <li data-step="1" class="active">Source</li>
+      <li data-step="2">Group</li>
+      <li data-step="3">People</li>
+      <li data-step="4">Finish</li>
+    </ol>
+
+    <!-- Step 1: source -->
+    <section class="setup-pane active" data-pane="1">
+      <h2>1 · Point at your export</h2>
+      <p class="setup-p">
+        Tell the build where your <b>raw Twitter/X group export</b> lives. Only the
+        <code>.js</code> file is required; the media folder is optional but
+        recommended (photos &amp; videos). Paths are relative to the project root,
+        or absolute.
+      </p>
+      <label class="setup-label">Source <code>.js</code> file(s) — one per line</label>
+      <textarea id="src-js" class="setup-input setup-textarea" rows="3"
+        placeholder="exports/direct-messages-group.js"></textarea>
+      <label class="setup-label">Media folder (optional)</label>
+      <input id="src-media" class="setup-input" type="text"
+        placeholder="direct_messages_group_media" />
+      <div class="setup-actions">
+        <button class="btn primary" id="btn-build">Build archive</button>
+      </div>
+      <div class="setup-result" id="src-result" hidden></div>
+    </section>
+
+    <!-- Step 2: group -->
+    <section class="setup-pane" data-pane="2" hidden>
+      <h2>2 · Name the group <span class="setup-opt">optional</span></h2>
+      <p class="setup-p">Restore the group's real name and photo. The photo becomes
+        the sidebar brand mark. You can change these later in Settings.</p>
+      <label class="setup-label">Group name</label>
+      <input id="gc-name" class="setup-input" type="text" placeholder="The GC" />
+      <label class="setup-label">Group photo</label>
+      <div class="setup-uprow">
+        <div class="setup-avpreview" id="gc-preview">💬</div>
+        <input id="gc-photo" type="file" accept="image/*" class="setup-file" />
+        <button class="btn ghost" id="gc-pick">Choose photo…</button>
+      </div>
+      <div class="setup-actions">
+        <button class="btn ghost" data-back>Back</button>
+        <button class="btn primary" data-next>Next</button>
+      </div>
+    </section>
+
+    <!-- Step 3: people -->
+    <section class="setup-pane" data-pane="3" hidden>
+      <h2>3 · Name everyone <span class="setup-opt">optional</span></h2>
+      <p class="setup-p">The export only has numeric IDs. Use each person's sample
+        messages &amp; shared media (Twitter/X links excluded — they don't help) to
+        recognize them. Add a name, a photo, and mark which one is <b>you</b>.</p>
+      <div id="people" class="setup-people"></div>
+      <div class="setup-actions">
+        <button class="btn ghost" data-back>Back</button>
+        <button class="btn primary" data-next>Next</button>
+      </div>
+    </section>
+
+    <!-- Step 4: finish -->
+    <section class="setup-pane" data-pane="4" hidden>
+      <h2>4 · Finish</h2>
+      <p class="setup-p">Save your names, photos and "you" marker, then open the
+        archive.</p>
+      <div class="setup-actions">
+        <button class="btn ghost" data-back>Back</button>
+        <button class="btn primary" id="btn-save">Save &amp; finish</button>
+      </div>
+      <div class="setup-result" id="finish-result" hidden></div>
+    </section>
+  </div>
+
+  <script src="src/setup.js"></script>
+</body>
+</html>

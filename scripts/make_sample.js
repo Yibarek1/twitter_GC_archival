@@ -118,7 +118,9 @@ const conversations = [
 conversations.sort((a, b) => b.count - a.count);
 
 const OUT = path.join(here, "data.sample.js");
-fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: new Date().toISOString(), conversations }) + ";\n");
+// __sample marks this as the synthetic demo so the app can show a first-run
+// onboarding prompt; any real build overrides window.CHAT_DATA without it.
+fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: new Date().toISOString(), __sample: true, conversations }) + ";\n");
 
 const total = conversations.reduce((s, c) => s + c.count, 0);
 console.log("Wrote data.sample.js —", conversations.length, "group conversations,", total, "messages.");

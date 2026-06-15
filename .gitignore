@@ -2,7 +2,12 @@
 #  PRIVATE DATA — never commit. This repo ships only synthetic sample data.
 # ============================================================================
 
-# Built archive (real messages) — regenerate with `node build.js`
+# All real, user-specific data lives here: config.json, the built data.js,
+# local.js (names/pfps/me/GC), copied media, and profile/group photos.
+# Written by the setup wizard (setup.html) — never commit.
+personal_data/
+
+# Built archive (real messages) — regenerate with `node scripts/build.js`
 data.js
 
 # Raw Twitter/X exports (full content + headers, 1:1 + group)
