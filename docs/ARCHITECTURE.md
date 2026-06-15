@@ -48,7 +48,8 @@ Server endpoints:
 
 | Endpoint | Role |
 |----------|------|
-| `POST /api/source` | `{ sourceJs, mediaDir }` → validate, copy the export(s) into `personal_data/source/` and media into `personal_data/media/`, write `config.json`, run `build.js`, return a summary. |
+| `GET /api/pick-file` · `GET /api/pick-folder` | Open a native Windows file/folder dialog (PowerShell `OpenFileDialog` / `FolderBrowserDialog`) and return the chosen absolute path, so users can browse instead of typing. Falls back to manual entry off Windows. |
+| `POST /api/source` | `{ sourceJs, mediaDir }` → validate (both **required**), copy the export(s) into `personal_data/source/` and media into `personal_data/media/`, write `config.json`, run `build.js`, return a summary. |
 | `GET /api/parts` | Participants from the built data, each with up to 10 Twitter/X-link-free sample messages + a few shared-media paths. |
 | `POST /api/identity` | `{ me, gcName, gcPhoto, names, pfps }` (images as data URLs) → write files into `personal_data/pfps/`, then `personal_data/local.js`. |
 

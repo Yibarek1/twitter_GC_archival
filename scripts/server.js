@@ -79,6 +79,20 @@ function copyMediaFlat(srcDir, destDir) {
   })(srcDir);
   return n;
 }
+// Open a native Windows file/folder picker and return the chosen absolute path
+// (files joined by "|", which is illegal in Windows paths so it's a safe
+// delimiter). Returns "" on cancel, or null when unsupported (non-Windows / no
+// PowerShell) so the caller can tell the user to type the path instead.
+function nativePick(kind) {
+  if (process.platform !== "win32") return null;
+  const ps = kind === "folder"
+    ? "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.FolderBrowserDialog;$d.Description='Select your group media folder';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.SelectedPath)};$o.Dispose()"
+    : "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Filter='Twitter/X export (*.js)|*.js|All files (*.*)|*.*';$d.Multiselect=$true;$d.Title='Select your direct-messages-group.js';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write(($d.FileNames -join '|'))};$o.Dispose()";
+  try {
+    return execFileSync("powershell.exe", ["-STA", "-NoProfile", "-Command", ps], { encoding: "utf8", windowsHide: true }).trim();
+  } catch (e) { return null; }
+}
+
 function readBuiltData() {
   for (const f of [path.join(PERSONAL, "data.js"), path.join(ROOT, "data.js")]) {
     if (!fs.existsSync(f)) continue;
@@ -98,6 +112,7 @@ function apiSource(body, res) {
   if (missing.length) return sendJSON(res, 400, { error: "Source file(s) not found: " + missing.join(", ") });
 
   const mediaDirIn = body.mediaDir ? String(body.mediaDir).trim() : "";
+  if (!mediaDirIn) return sendJSON(res, 400, { error: "A media folder is required." });
   let mediaCopied = 0;
   const cfg = loadConfig();
 
@@ -231,6 +246,8 @@ function serveStatic(req, res) {
 http.createServer(async (req, res) => {
   const url = req.url.split("?")[0];
   try {
+    if (req.method === "GET" && url === "/api/pick-file") { const p = nativePick("file"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
+    if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);
     if (req.method === "GET" && url === "/api/parts") return apiParts(res);
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req), res);

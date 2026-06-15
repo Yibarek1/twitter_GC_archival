@@ -39,11 +39,28 @@ $$("[data-back]").forEach((b) => b.onclick = () => go(Math.max(1, step - 1)));
 
 function flash(host, html, cls) { host.hidden = false; host.className = "setup-result " + (cls || ""); host.innerHTML = html; }
 
-/* ---- step 1: build ------------------------------------------------------- */
+/* ---- step 1: native pickers + build -------------------------------------- */
+async function pick(kind, fill) {
+  flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
+  try {
+    const r = await fetch("/api/pick-" + kind);
+    const j = await r.json();
+    if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows — please paste the path instead.", "err"); return; }
+    if (!j.path) { $("#src-result").hidden = true; return; }   // cancelled
+    fill(j.path);
+    $("#src-result").hidden = true;
+  } catch (e) {
+    flash($("#src-result"), "✗ " + e.message + " — is the server running? (node scripts/server.js)", "err");
+  }
+}
+$("#src-browse").onclick = () => pick("file", (p) => { $("#src-js").value = p.split("|").join("\n"); });
+$("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; });
+
 $("#btn-build").onclick = async () => {
   const sourceJs = $("#src-js").value.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
   const mediaDir = $("#src-media").value.trim();
-  if (!sourceJs.length) { flash($("#src-result"), "Enter at least one source .js path.", "err"); return; }
+  if (!sourceJs.length) { flash($("#src-result"), "Choose at least one source .js file.", "err"); return; }
+  if (!mediaDir) { flash($("#src-result"), "Choose your media folder — it's required.", "err"); return; }
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
   try {
     const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceJs, mediaDir }) });

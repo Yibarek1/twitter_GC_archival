@@ -29,17 +29,23 @@
     <section class="setup-pane active" data-pane="1">
       <h2>1 · Point at your export</h2>
       <p class="setup-p">
-        Tell the build where your <b>raw Twitter/X group export</b> lives. Only the
-        <code>.js</code> file is required; the media folder is optional but
-        recommended (photos &amp; videos). Paths are relative to the project root,
-        or absolute.
+        Tell the build where your <b>raw Twitter/X group export</b> lives — both the
+        <code>.js</code> file <b>and</b> its media folder (photos &amp; videos) are
+        required. Click <b>Browse…</b> to pick them, or paste a path (relative to the
+        project root, or absolute).
       </p>
-      <label class="setup-label">Source <code>.js</code> file(s) — one per line</label>
-      <textarea id="src-js" class="setup-input setup-textarea" rows="3"
-        placeholder="exports/direct-messages-group.js"></textarea>
-      <label class="setup-label">Media folder (optional)</label>
-      <input id="src-media" class="setup-input" type="text"
-        placeholder="direct_messages_group_media" />
+      <label class="setup-label">Source <code>.js</code> file(s)</label>
+      <div class="setup-pickrow">
+        <textarea id="src-js" class="setup-input setup-textarea" rows="2"
+          placeholder="exports/direct-messages-group.js"></textarea>
+        <button class="btn ghost setup-browse" id="src-browse">Browse…</button>
+      </div>
+      <label class="setup-label">Media folder <span class="setup-req">required</span></label>
+      <div class="setup-pickrow">
+        <input id="src-media" class="setup-input" type="text"
+          placeholder="direct_messages_group_media" />
+        <button class="btn ghost setup-browse" id="media-browse">Browse…</button>
+      </div>
       <div class="setup-actions">
         <button class="btn primary" id="btn-build">Build archive</button>
       </div>

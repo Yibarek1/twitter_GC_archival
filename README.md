@@ -79,8 +79,8 @@ node scripts/server.js                 # → http://localhost:8765
 # then open  http://localhost:8765/setup.html
 ```
 
-1. **Source** — point at your `direct-messages-group.js` and (optionally) the
-   media folder, then **Build**.
+1. **Source** — click **Browse…** to pick your `direct-messages-group.js` and your
+   media folder (both required; native file dialogs on Windows), then **Build**.
 2. **Group** *(optional)* — set the group name + photo (becomes the sidebar mark).
 3. **People** *(optional)* — each participant card shows sample messages and a few
    pieces of media they shared (Twitter/X links excluded — they don't help you
