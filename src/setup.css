@@ -61,6 +61,10 @@
 }
 .setup-result.ok { border-color: var(--accent); }
 .setup-result.err { border-color: #ef4444; color: #fca5a5; }
+.setup-result code {
+  font-family: ui-monospace, monospace; font-size: 0.92em; color: var(--text);
+  background: var(--bg-3); padding: 1px 6px; border-radius: 4px;
+}
 .setup-result ul { margin: 8px 0 0; padding-left: 18px; }
 
 .setup-uprow { display: flex; align-items: center; gap: 14px; }

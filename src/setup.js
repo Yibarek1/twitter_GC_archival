@@ -39,8 +39,22 @@ $$("[data-back]").forEach((b) => b.onclick = () => go(Math.max(1, step - 1)));
 
 function flash(host, html, cls) { host.hidden = false; host.className = "setup-result " + (cls || ""); host.innerHTML = html; }
 
+// The wizard needs the Node server (writing files / copying media / native
+// dialogs all require it). Opened as a file://, every fetch fails with the
+// cryptic "Failed to fetch" — so detect that and say exactly what to do.
+const SERVED = location.protocol === "http:" || location.protocol === "https:";
+function needServer(host) {
+  flash(host,
+    "This page is open as a <b>local file</b>, but the setup wizard must run " +
+    "<b>through the local server</b>. Start it and reopen this page there:" +
+    "<br><br>1. <code>node scripts/server.js</code>" +
+    "<br>2. open <code>http://localhost:8765/setup.html</code>", "err");
+}
+if (!SERVED) needServer($("#src-result"));
+
 /* ---- step 1: native pickers + build -------------------------------------- */
 async function pick(kind, fill) {
+  if (!SERVED) { needServer($("#src-result")); return; }
   flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
   try {
     const r = await fetch("/api/pick-" + kind);
@@ -57,6 +71,7 @@ $("#src-browse").onclick = () => pick("file", (p) => { $("#src-js").value = p.sp
 $("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; });
 
 $("#btn-build").onclick = async () => {
+  if (!SERVED) { needServer($("#src-result")); return; }
   const sourceJs = $("#src-js").value.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
   const mediaDir = $("#src-media").value.trim();
   if (!sourceJs.length) { flash($("#src-result"), "Choose at least one source .js file.", "err"); return; }
