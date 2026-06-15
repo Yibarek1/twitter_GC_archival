@@ -2477,11 +2477,14 @@ function setView(name) {
   else if (name === "firsts") renderFirsts();
 }
 
+// A name that does NOT depend on the active conversation's GENERIC map, so
+// conversation-picker labels stay stable/distinct no matter what's open.
+function stableName(id) { return settings.names[id] || LOCAL_NAMES[id] || ("User " + String(id).slice(-4)); }
 function convLabel(c) {
   if (!c) return "Conversation";
   if (c.title) return c.title;
   if (c.type === "dm") {
-    const others = (c.participants || []).slice(0, 2).map(nameOf).filter(Boolean);
+    const others = (c.participants || []).slice(0, 2).map(stableName).filter(Boolean);
     return others.length ? others.join(" ↔ ") : "Direct message";
   }
   return "Group " + String(c.id).slice(-4);
@@ -2502,12 +2505,19 @@ function renderConvPicker() {
   if (!host) return;
   if (CONVOS.length <= 1) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
-  const opts = CONVOS.map((c) => {
-    const ico = c.type === "group" ? "👥" : "💬";
-    return `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${ico} ${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
-  }).join("");
-  host.innerHTML = `<label class="conv-pick-label">Conversation</label>
-    <select id="conv-select" class="conv-select">${opts}</select>`;
+  const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
+  const groups = CONVOS.filter((c) => c.type === "group");
+  const dms = CONVOS.filter((c) => c.type !== "group");
+  let body = "";
+  // when both kinds exist, split into labelled optgroups for navigability
+  if (groups.length && dms.length) {
+    body = `<optgroup label="👥 Group chats (${groups.length})">${groups.map(opt).join("")}</optgroup>` +
+           `<optgroup label="💬 Direct messages (${dms.length})">${dms.map(opt).join("")}</optgroup>`;
+  } else {
+    body = CONVOS.map(opt).join("");
+  }
+  host.innerHTML = `<label class="conv-pick-label">Conversation (${CONVOS.length})</label>
+    <select id="conv-select" class="conv-select">${body}</select>`;
   host.querySelector("#conv-select").onchange = (e) => activateConversation(e.target.value, true);
 }
 
