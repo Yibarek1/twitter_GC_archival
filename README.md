@@ -11,6 +11,9 @@ keys, no internet. Have several group chats? A picker switches between them.
 > `data.sample.js`. Point it at your own export to see your real history (kept
 > local and `.gitignore`d).
 
+![Group Chat Archive — search view with the black + blue theme, running on the
+synthetic demo data](docs/screenshot.png)
+
 ---
 
 ## Features
