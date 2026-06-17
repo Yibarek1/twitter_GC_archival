@@ -161,6 +161,8 @@ html, body {
 }
 .spacer { flex: 1; }
 .result-meta { color: var(--text-dim); font-size: 13px; white-space: nowrap; }
+.match-hint { color: var(--text-faint); font-size: 12px; margin-top: 2px; }
+.match-hint b { color: var(--text-dim); font-weight: 600; }
 
 /* popover (people filter, saved searches) */
 .popwrap { position: relative; }

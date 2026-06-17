@@ -501,7 +501,7 @@ function toast(msg) {
 /* ===========================================================================
    SEARCH VIEW
    ======================================================================== */
-const F = { needles: [], people: new Set(), from: null, to: null, media: false, links: false, reacts: false, grid: false, sort: "relevance" };
+const F = { needles: [], people: new Set(), from: null, to: null, media: false, links: false, reacts: false, grid: false, sort: "relevance", fuzzy: true };
 let searchBuilt = false;
 let sEls = {};
 let resState = { idx: [], page: 0 };
@@ -539,6 +539,10 @@ function ensureSearch() {
             <option value="longest">Longest</option>
           </select>
         </label>
+        <div class="seg" id="f-matchtoggle" title="How search words are matched">
+          <button data-mode="fuzzy" class="sel" title="Fuzzy: also finds close and misspelled matches (typo-tolerant)">Fuzzy</button>
+          <button data-mode="exact" title="Exact: only messages that literally contain your words">Exact</button>
+        </div>
         <div class="seg" id="f-viewtoggle">
           <button data-mode="list" class="sel">List</button>
           <button data-mode="grid">Grid</button>
@@ -549,6 +553,7 @@ function ensureSearch() {
         </div>
         <button class="pill" id="f-save">＋ Save search</button>
       </div>
+      <div class="match-hint" id="s-matchhint"></div>
       <div class="result-meta" id="s-meta"></div>
     </div>
     <div class="scroll" id="s-scroll"><div class="list" id="s-list"></div></div>
@@ -563,11 +568,24 @@ function ensureSearch() {
     saved: v.querySelector("#f-saved"), save: v.querySelector("#f-save"), viewtoggle: v.querySelector("#f-viewtoggle"),
     clearAll: v.querySelector("#f-clear-all"), exportBtn: v.querySelector("#f-export"), btt: v.querySelector("#s-btt"),
     sort: v.querySelector("#f-sort"),
+    matchtoggle: v.querySelector("#f-matchtoggle"), matchhint: v.querySelector("#s-matchhint"),
   };
 
   // sort control
   sEls.sort.value = F.sort;
   sEls.sort.onchange = () => { F.sort = sEls.sort.value; runSearch(); };
+
+  // match-mode toggle (fuzzy ⇄ exact)
+  sEls.matchtoggle.querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("sel", (b.dataset.mode === "fuzzy") === F.fuzzy);
+    b.onclick = () => {
+      F.fuzzy = b.dataset.mode === "fuzzy";
+      sEls.matchtoggle.querySelectorAll("button").forEach((x) => x.classList.toggle("sel", x === b));
+      updateMatchHint();
+      runSearch();
+    };
+  });
+  updateMatchHint();
 
   // input
   let deb = null;
@@ -693,13 +711,15 @@ function runSearch() {
 
   const out = [];
   if (F.needles.length > 0) {
-    if (!fuseIndex && window.Fuse) fuseIndex = new Fuse(LOWER, { threshold: 0.3, ignoreLocation: true });
+    // Fuzzy (default): Fuse.js typo-tolerant ranking. Exact: literal substring AND-match.
+    const useFuzzy = F.fuzzy && window.Fuse;
     let baseIdx = [];
-    if (fuseIndex) {
+    if (useFuzzy) {
+      if (!fuseIndex) fuseIndex = new Fuse(LOWER, { threshold: 0.3, ignoreLocation: true });
       baseIdx = fuseIndex.search(F.needles.join(" ")).map(r => r.refIndex);
     } else {
       for (let i = N - 1; i >= 0; i--) {
-        const L = LOWER[i]; 
+        const L = LOWER[i];
         let match = true;
         for (const n of F.needles) if (L.indexOf(n) < 0) { match = false; break; }
         if (match) baseIdx.push(i);
@@ -722,7 +742,7 @@ function runSearch() {
   if (resObserver) resObserver.disconnect();
 
   const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts;
-  const sortLbl = { relevance: F.needles.length && window.Fuse ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+  const sortLbl = { relevance: F.needles.length && F.fuzzy && window.Fuse ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
   sEls.meta.textContent = hasFilter
     ? fmtNum(out.length) + (out.length === 1 ? " message" : " messages") + " found" + (F.grid ? " · showing media only" : "") + " · sorted by " + sortLbl
     : "Showing all " + fmtNum(out.length) + " messages, newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'";
@@ -786,6 +806,13 @@ function updatePeopleBadge() {
   sEls.peopleN.hidden = F.people.size === 0;
   sEls.peopleN.textContent = F.people.size;
   sEls.people.classList.toggle("active", F.people.size > 0);
+}
+function updateMatchHint() {
+  if (!sEls.matchhint) return;
+  const fuzzy = '<b>Fuzzy</b>: finds close &amp; misspelled matches (typo-tolerant, ranked by relevance).';
+  const exact = '<b>Exact</b>: shows only messages that literally contain every word/phrase you type.';
+  // Lead with the active mode's description so the user knows what's in effect.
+  sEls.matchhint.innerHTML = F.fuzzy ? fuzzy + " &nbsp;·&nbsp; " + exact : exact + " &nbsp;·&nbsp; " + fuzzy;
 }
 function updateClearAllBtn() {
   const hasFilter = (F.needles && F.needles.length) || F.people.size || F.from || F.to || F.media || F.links || F.reacts || (sEls.input && sEls.input.value.trim());
