@@ -40,6 +40,13 @@ Everything runs from `file://` — just double-click `index.html`. The included
 `scripts/server.js` is needed only for the first-run **setup wizard**
 (`setup.html`) or if your browser blocks local video over `file://`.
 
+Run smoke checks after installing dev dependencies:
+
+```bash
+npm install
+npm run test:smoke
+```
+
 ---
 
 ## Quick start (demo, zero real data)
@@ -133,6 +140,11 @@ window.CHAT_DATA = {
 
 The viewer also accepts the older single-conversation shape
 (`{ conversationId, msgs, events }`) for backward compatibility.
+
+Private builds can omit known bad/export-only users by adding an
+`ignoredUsers: ["user-id"]` array to `personal_data/config.json` before running
+the wizard build, or by setting `window.LOCAL_IGNORED_USERS` in a gitignored
+local override.
 
 ---
 

@@ -68,7 +68,8 @@ function activateConversation(id, rerender) {
   if (!c) return;
   CONV = c;
   try { localStorage.setItem("gca.conv", c.id); } catch (e) {}
-  MSGS = (c.msgs || []).filter(m => m.s !== '1307404669594013706'); // legacy: drop a 2-message ghost user
+  const ignored = ignoredUserIds();
+  MSGS = (c.msgs || []).filter(m => !ignored.has(String(m.s)));
   EVENTS = c.events || [];
   rebuildIndexes();
   resetDerived();
@@ -110,6 +111,7 @@ function initDateFormatters() {
 // the People tab (saved to localStorage). A private, gitignored names.local.js
 // may set window.LOCAL_NAMES / window.LOCAL_PFPS to override locally.
 const LOCAL_NAMES = (typeof window !== "undefined" && window.LOCAL_NAMES) || {};
+const LOCAL_IGNORED_USERS = (typeof window !== "undefined" && Array.isArray(window.LOCAL_IGNORED_USERS)) ? window.LOCAL_IGNORED_USERS.map(String) : [];
 // Optional gitignored overrides written by the setup wizard (personal_data/local.js):
 //   window.LOCAL_ME  = "<id>"               — which participant is "you"
 //   window.LOCAL_GC  = { name, photo }       — the real group name + photo path
@@ -117,7 +119,7 @@ const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
 const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 const DEFAULTS = {
   names: {}, pfps: {}, gcName: "", gcPhoto: "",
-  colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], timezone: "UTC"
+  colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], timezone: "UTC"
 };
 let settings = loadSettings();
 initDateFormatters();
@@ -130,6 +132,7 @@ function loadSettings() {
     s.colors = Object.assign({}, DEFAULTS.colors, saved.colors || {});
     if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
     s.pins = Array.isArray(saved.pins) ? saved.pins.slice() : [];   // own array, never share DEFAULTS.pins
+    s.ignoredUsers = Array.isArray(saved.ignoredUsers) ? saved.ignoredUsers.map(String) : [];
     if (!Array.isArray(s.saved)) s.saved = [];
     return s;
   } catch (e) { 
@@ -138,6 +141,14 @@ function loadSettings() {
   }
 }
 function saveSettings() { try { localStorage.setItem("gca.settings", JSON.stringify(settings)); } catch (e) {} }
+
+function ignoredUserIds() {
+  const ids = []
+    .concat(Array.isArray(DATA.ignoredUsers) ? DATA.ignoredUsers : [])
+    .concat(LOCAL_IGNORED_USERS)
+    .concat(Array.isArray(settings.ignoredUsers) ? settings.ignoredUsers : []);
+  return new Set(ids.map(String));
+}
 
 /* ---- Helpers ------------------------------------------------------------- */
 function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }

@@ -20,10 +20,13 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 
-const ROOT = path.join(__dirname, "..");        // project root (this script lives in scripts/)
+const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
 const PORT = 8765;
+const HOST = "127.0.0.1";
+const MAX_JSON_BODY = 64 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const TYPES = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".json": "application/json", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -38,6 +41,12 @@ const VID = new Set(["mp4", "mov", "webm", "m4v"]);
 const kindOf = (p) => { const e = String(p).split(".").pop().toLowerCase(); return IMG.has(e) ? "img" : VID.has(e) ? "vid" : "file"; };
 const rel = (p) => path.relative(ROOT, p).split(path.sep).join("/");
 
+function httpError(code, message) {
+  const err = new Error(message);
+  err.statusCode = code;
+  return err;
+}
+
 function sendJSON(res, code, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(code, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
@@ -47,8 +56,19 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
-    req.on("data", (c) => { size += c.length; if (size > 64 * 1024 * 1024) { reject(new Error("body too large")); req.destroy(); } chunks.push(c); });
-    req.on("end", () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); } catch (e) { reject(e); } });
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > MAX_JSON_BODY) {
+        reject(httpError(413, "Request body is too large."));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
+      catch (e) { reject(httpError(400, "Invalid JSON request body.")); }
+    });
     req.on("error", reject);
   });
 }
@@ -66,7 +86,9 @@ function decodeDataUrl(url) {
   if (!m) return null;
   const mime = m[1].toLowerCase();
   const ext = mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : mime === "image/gif" ? "gif" : mime === "image/webp" ? "webp" : "img";
-  return { buf: Buffer.from(m[2], "base64"), ext };
+  const buf = Buffer.from(m[2], "base64");
+  if (buf.length > MAX_IMAGE_BYTES) throw httpError(413, "Uploaded images must be 10 MB or smaller.");
+  return { buf, ext };
 }
 function copyMediaFlat(srcDir, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
@@ -124,7 +146,7 @@ function apiSource(body, res) {
   if (!headersJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group-headers.js file." });
   if (!mediaDirIn) return sendJSON(res, 400, { error: "Choose your direct_messages_group_media folder." });
 
-  const absOf = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p));
+  const absOf = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));
   const groupAbs = absOf(groupJs), headersAbs = absOf(headersJs), mediaAbs = absOf(mediaDirIn);
   if (!fs.existsSync(groupAbs)) return sendJSON(res, 400, { error: "Messages file not found: " + groupJs });
   if (!fs.existsSync(headersAbs)) return sendJSON(res, 400, { error: "Headers file not found: " + headersJs });
@@ -233,25 +255,51 @@ function apiIdentity(body, res) {
 
 /* ---- static file serving (unchanged behavior) ---------------------------- */
 function serveStatic(req, res) {
-  let p = decodeURIComponent(req.url.split("?")[0]);
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    res.writeHead(405, { "Allow": "GET, HEAD" });
+    return res.end("method not allowed");
+  }
+  let p;
+  try { p = decodeURIComponent(req.url.split("?")[0]); }
+  catch (e) { res.writeHead(400); return res.end("bad path"); }
   if (p === "/") p = "/index.html";
-  const file = path.join(ROOT, p);
-  if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end("forbidden"); }
+  const file = path.resolve(ROOT, "." + p.replace(/\\/g, "/"));
+  const outside = path.relative(ROOT, file);
+  if (outside === "" || outside.startsWith("..") || path.isAbsolute(outside)) {
+    res.writeHead(403);
+    return res.end("forbidden");
+  }
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404); return res.end("not found"); }
     const type = TYPES[path.extname(file).toLowerCase()] || "application/octet-stream";
     const range = req.headers.range;
     if (range && /^bytes=/.test(range)) {
-      const [s, e] = range.replace("bytes=", "").split("-");
-      const start = parseInt(s, 10) || 0;
-      const end = e ? parseInt(e, 10) : st.size - 1;
+      const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (!m) { res.writeHead(416); return res.end("invalid range"); }
+      let start;
+      let end;
+      if (m[1] === "" && m[2] !== "") {
+        const suffix = parseInt(m[2], 10);
+        start = Math.max(st.size - suffix, 0);
+        end = st.size - 1;
+      } else {
+        start = parseInt(m[1], 10);
+        end = m[2] ? parseInt(m[2], 10) : st.size - 1;
+      }
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= st.size) {
+        res.writeHead(416, { "Content-Range": `bytes */${st.size}` });
+        return res.end("range not satisfiable");
+      }
+      end = Math.min(end, st.size - 1);
       res.writeHead(206, {
-        "Content-Type": type, "Accept-Ranges": "bytes",
+        "Content-Type": type, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff",
         "Content-Range": `bytes ${start}-${end}/${st.size}`, "Content-Length": end - start + 1,
       });
+      if (req.method === "HEAD") return res.end();
       fs.createReadStream(file, { start, end }).pipe(res);
     } else {
-      res.writeHead(200, { "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes" });
+      res.writeHead(200, { "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
+      if (req.method === "HEAD") return res.end();
       fs.createReadStream(file).pipe(res);
     }
   });
@@ -266,10 +314,10 @@ http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/parts") return apiParts(res);
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req), res);
   } catch (e) {
-    return sendJSON(res, 500, { error: String(e && e.message || e) });
+    return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });
   }
   serveStatic(req, res);
-}).listen(PORT, () => console.log(
-  "Group Chat Archive running at  http://localhost:" + PORT +
-  "\nFirst-run setup:               http://localhost:" + PORT + "/setup.html" +
+}).listen(PORT, HOST, () => console.log(
+  "Group Chat Archive running at  http://" + HOST + ":" + PORT +
+  "\nFirst-run setup:               http://" + HOST + ":" + PORT + "/setup.html" +
   "\nPress Ctrl+C to stop."));

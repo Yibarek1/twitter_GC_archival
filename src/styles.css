@@ -956,43 +956,9 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- First & Last Messages ----------------------------------------------- */
 
-/* ---- Threads ------------------------------------------------------------- */
-.thr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.thr-card {
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 16px; cursor: pointer; transition: all 0.2s;
-  display: flex; flex-direction: column; gap: 8px; position: relative;
-}
-.thr-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 8px 24px var(--accent-glow); }
-.thr-rank { position: absolute; top: -10px; right: -10px; background: var(--bg-1); border: 1px solid var(--accent); color: var(--accent); border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 11px; font-weight: 800; }
-.thr-date { font-size: 12px; color: var(--text-dim); font-weight: 700; }
-.thr-stats { display: flex; gap: 12px; font-size: 12px; color: var(--text-faint); }
-.thr-stat b { color: var(--text); }
-.thr-preview { font-size: 13px; line-height: 1.4; color: var(--text); font-style: italic; background: var(--bg-2); padding: 10px; border-radius: 8px; flex: 1; }
-.thr-people { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
-.thr-extra { font-size: 10px; color: var(--text-faint); margin-left: 4px; font-weight: 700; }
-
 /* ---- Quiz ---------------------------------------------------------------- */
 
 /* ---- Moods --------------------------------------------------------------- */
-
-/* ---- Battles ------------------------------------------------------------- */
-.battle-selectors { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
-.battle-picker { display: flex; align-items: center; gap: 12px; background: var(--bg-1); border: 1px solid var(--line); padding: 8px 16px 8px 8px; border-radius: 999px; }
-.battle-picker select { background: transparent; border: 0; color: var(--text); font-family: var(--font); font-size: 16px; font-weight: 600; outline: 0; cursor: pointer; color-scheme: dark; }
-.battle-picker select option { background: var(--bg-2); color: var(--text); }
-.battle-vs { font-size: 24px; font-weight: 900; color: var(--accent); font-style: italic; text-shadow: 0 0 12px var(--accent-glow); }
-.battle-custom { display: flex; justify-content: center; gap: 10px; }
-#battle-results { display: flex; flex-direction: column; gap: 20px; margin-top: 24px; }
-.btl-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-.btl-word { text-align: center; font-size: 28px; font-weight: 800; color: var(--text); margin-bottom: 8px; background: var(--bg-2); padding: 8px; border-radius: 12px; }
-.btl-row { display: flex; justify-content: space-between; align-items: flex-end; }
-.btl-p { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 45%; }
-.btl-p.winner .av { box-shadow: 0 0 0 4px var(--accent-glow), 0 0 0 2px var(--accent); transform: scale(1.1); }
-.btl-p.winner .btl-count { color: var(--accent); font-size: 32px; }
-.btl-count { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; transition: all 0.3s; }
-.btl-bar-wrap { width: 100%; height: 12px; background: var(--bg-2); border-radius: 6px; overflow: hidden; display: flex; margin-top: 12px; }
-.btl-bar { height: 100%; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
 
 /* ---- First-run onboarding overlay --------------------------------------- */
 .onboard {

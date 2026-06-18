@@ -46,6 +46,7 @@ const toMs = (iso) => (iso ? Date.parse(iso) : 0);
 const IMG = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const VID = new Set(["mp4", "mov", "webm", "m4v"]);
 const kindOf = (p) => { const e = p.split(".").pop().toLowerCase(); return IMG.has(e) ? "img" : VID.has(e) ? "vid" : "file"; };
+const IGNORED_USERS = new Set((Array.isArray(config.ignoredUsers) ? config.ignoredUsers : []).map(String));
 
 // a 1:1 DM id looks like "{userA}-{userB}"; a group id is a single numeric id
 const isGroupId = (id) => !/^\d+-\d+$/.test(String(id));
@@ -199,16 +200,19 @@ const conversations = [];
 let totalMsgs = 0, totalMedia = 0;
 for (const c of convos.values()) {
   let withMedia = 0;
-  for (const rec of c.msgMap.values()) {
+  const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED_USERS.has(String(m.s)));
+  for (const rec of msgVals) {
     const mp = mediaIdx[rec.i];
     if (mp) { rec.m = mp; rec.k = kindOf(mp); withMedia++; }
     else if (rec.m) withMedia++;
   }
-  const msgs = [...c.msgMap.values()].sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
+  const msgs = msgVals
+    .sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
   const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
   if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
 
-  const participants = [...new Set([...msgs.map((m) => m.s), ...(c.headerParts || [])])];
+  const headerParts = [...(c.headerParts || [])].filter((id) => !IGNORED_USERS.has(String(id)));
+  const participants = [...new Set([...msgs.map((m) => m.s), ...headerParts])];
   const nameEv = events.filter((e) => e.type === "name");
   const title = nameEv.length ? nameEv[nameEv.length - 1].name
     : (c.type === "group" ? "Group " + String(c.id).slice(-4) : null);
@@ -223,7 +227,11 @@ conversations.sort((a, b) => b.count - a.count);
 
 // 4) write
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
-fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: new Date().toISOString(), conversations }) + ";\n");
+fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({
+  generatedAt: new Date().toISOString(),
+  ignoredUsers: [...IGNORED_USERS],
+  conversations,
+}) + ";\n");
 
 const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
 log("---");
