@@ -11,7 +11,6 @@ module.exports = [
       "node_modules/**",
       "personal_data*/**",  // private real data + any backup copies (e.g. personal_data.REAL)
       "exports/**",        // raw export stubs (data, not source), gitignored
-      "_demo_export/**",   // throwaway wizard-test export (data, not source)
       "data.sample.js",    // generated demo data
       "**/*.local.js",     // gitignored local overrides
     ],

@@ -1,5 +1,7 @@
 # Group Chat Archive
 
+[![CI](https://github.com/Yibarek1/twitter_GC_archival/actions/workflows/ci.yml/badge.svg)](https://github.com/Yibarek1/twitter_GC_archival/actions/workflows/ci.yml)
+
 A **dependency-free, fully offline** browser for Twitter/X **group chat** (group
 DM) exports. Drop in your export, run one build script, and explore years of
 group history with fuzzy search, a virtual timeline, a media gallery,
