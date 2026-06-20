@@ -123,7 +123,9 @@ X exports contain only numeric user IDs, so everyone shows as **User 1, User 2,
 …** by default. The setup wizard (above) is the easiest way to name everyone. You
 can always edit later in the **People** tab — rename, pick a color, upload a
 profile picture, and mark "This is me" — all saved to `localStorage` (works from
-`file://`, no server). For a permanent local mapping you can also hand-edit
+`file://`, no server). **Group** names and photos are editable the same way under
+**Settings → Group chats** (each group chat independently), so nothing set in the
+wizard is permanent. For a permanent local mapping you can also hand-edit
 `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` / `LOCAL_ME` /
 `LOCAL_GC`).
 

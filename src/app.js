@@ -120,7 +120,7 @@ const LOCAL_IGNORED_GROUPS = (typeof window !== "undefined" && Array.isArray(win
 const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
 const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 const DEFAULTS = {
-  names: {}, pfps: {}, gcName: "", gcPhoto: "",
+  names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
 };
 let settings = loadSettings();
@@ -132,6 +132,7 @@ function loadSettings() {
     const s = Object.assign({}, DEFAULTS, saved);
     s.names = Object.assign({}, DEFAULTS.names, saved.names || {});
     s.pfps = loadPfps(saved.pfps);
+    s.gc = loadGc(saved.gc);
     s.colors = Object.assign({}, DEFAULTS.colors, saved.colors || {});
     if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
     s.pins = Array.isArray(saved.pins) ? saved.pins.slice() : [];   // own array, never share DEFAULTS.pins
@@ -163,9 +164,24 @@ function savePfps() {
   try { localStorage.setItem(PFPS_KEY, JSON.stringify(settings.pfps || {})); return true; }
   catch (e) { toast("That photo was too large to save — your names and other settings are safe."); return false; }
 }
+// Per-group name + photo overrides ({ convId: { name, photo } }) editable in the
+// app. Like pfps, the (bulky) photo data URLs live under their OWN localStorage
+// key so they can never trip the gca.settings quota.
+const GC_KEY = "gca.gc";
+function loadGc(legacy) {
+  try {
+    const raw = localStorage.getItem(GC_KEY);
+    if (raw != null) return JSON.parse(raw) || {};
+  } catch (e) { /* fall through */ }
+  return (legacy && typeof legacy === "object") ? Object.assign({}, legacy) : {};
+}
+function saveGc() {
+  try { localStorage.setItem(GC_KEY, JSON.stringify(settings.gc || {})); return true; }
+  catch (e) { toast("That group photo was too large to save — your other settings are safe."); return false; }
+}
 function saveSettings() {
   try {
-    const toStore = Object.assign({}, settings); delete toStore.pfps;   // pfps live under PFPS_KEY
+    const toStore = Object.assign({}, settings); delete toStore.pfps; delete toStore.gc;   // pfps + gc live under their own keys
     localStorage.setItem("gca.settings", JSON.stringify(toStore));
   } catch (e) { toast("Couldn't save settings — browser storage may be full."); }
 }
@@ -2305,6 +2321,11 @@ function renderSettings() {
       </div>
 
       <div class="set-group">
+        <div class="set-row"><div><div class="set-label">Group chats</div><div class="set-desc">Rename a group or change its sidebar photo — saved in this browser.</div></div></div>
+        <div class="gc-list" id="set-gcs"></div>
+      </div>
+
+      <div class="set-group">
         <div class="set-row"><div><div class="set-label">Saved searches</div><div class="set-desc">Created from the Search tab.</div></div></div>
         <div class="saved-list" id="set-saved"></div>
       </div>
@@ -2345,6 +2366,51 @@ function renderSettings() {
   v.querySelector("#set-av").onchange = (e) => { settings.avatars = e.target.checked; saveSettings(); applyTheme(); };
   v.querySelector("#set-ts").onchange = (e) => { settings.timestamps = e.target.checked; saveSettings(); applyTheme(); };
   v.querySelector("#set-tz").onchange = (e) => { settings.timezone = e.target.value; saveSettings(); initDateFormatters(); STATS = null; WORDS = null; MILES = null; toast("Timezone updated"); };
+
+  const gcl = v.querySelector("#set-gcs");
+  visibleConvos().forEach((c) => {
+    const entry = (settings.gc && settings.gc[c.id]) || {};
+    const lgc = LOCAL_GC ? (LOCAL_GC[c.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
+    const effPhoto = entry.photo || (lgc && lgc.photo) || settings.gcPhoto || "";
+    const row = el("div", "gc-item");
+    const av = el("div", "gc-av");
+    if (effPhoto) av.style.backgroundImage = `url('${effPhoto}')`; else av.textContent = "💬";
+    const mid = el("div", "gc-mid");
+    const name = document.createElement("input");
+    name.type = "text"; name.className = "gc-name-input";
+    name.placeholder = convLabel(c); name.value = entry.name || "";
+    name.oninput = () => {
+      if (!settings.gc[c.id]) settings.gc[c.id] = {};
+      const val = name.value.trim();
+      if (val) settings.gc[c.id].name = val; else delete settings.gc[c.id].name;
+      saveGc();
+      if (CONV && c.id === CONV.id) updateBrand();
+    };
+    mid.appendChild(name);
+    mid.appendChild(el("div", "gc-item-meta", esc(convLabel(c)) + " · " + fmtNum(c.count) + " messages"));
+    const file = document.createElement("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";
+    const pick = el("button", "btn sm ghost", effPhoto ? "Change photo" : "Add photo");
+    pick.onclick = () => file.click();
+    file.addEventListener("change", () => {
+      const f = file.files && file.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (!settings.gc[c.id]) settings.gc[c.id] = {};
+        settings.gc[c.id].photo = reader.result;
+        if (!saveGc()) delete settings.gc[c.id].photo;
+        else if (CONV && c.id === CONV.id) updateBrand();
+        renderSettings();
+      };
+      reader.readAsDataURL(f);
+    });
+    row.appendChild(av); row.appendChild(mid); row.appendChild(pick); row.appendChild(file);
+    if (entry.photo) {
+      const rm = el("button", "btn sm ghost", "Remove");
+      rm.onclick = () => { delete settings.gc[c.id].photo; saveGc(); if (CONV && c.id === CONV.id) updateBrand(); renderSettings(); };
+      row.appendChild(rm);
+    }
+    gcl.appendChild(row);
+  });
 
   const sl = v.querySelector("#set-saved");
   if (!settings.saved.length) sl.appendChild(el("div", "pop-empty", "No saved searches yet."));
@@ -2445,12 +2511,15 @@ function updateBrand() {
   const nameEv = EVENTS.filter((e) => e.type === "name");
   // LOCAL_GC is per-conversation { convId: { name, photo } }; older builds wrote a
   // single flat { name, photo } that applied to every group — support both.
-  const gc = LOCAL_GC ? (LOCAL_GC[CONV && CONV.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
-  const gcName = (gc && gc.name) || settings.gcName;
+  const lgc = LOCAL_GC ? (LOCAL_GC[CONV && CONV.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
+  // In-app per-group override (Settings → Group chats) wins over the wizard's
+  // LOCAL_GC, which wins over the legacy flat gcName/gcPhoto.
+  const sgc = (settings.gc && CONV) ? settings.gc[CONV.id] : null;
+  const gcName = (sgc && sgc.name) || (lgc && lgc.name) || settings.gcName;
   const title = gcName || (CONV && CONV.title) || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(CONV));
   // Restore the real group photo on the sidebar brand mark when present.
   const mark = document.querySelector(".brand-mark");
-  const gcPhoto = (gc && gc.photo) || settings.gcPhoto;
+  const gcPhoto = (sgc && sgc.photo) || (lgc && lgc.photo) || settings.gcPhoto;
   if (mark) {
     if (gcPhoto) {
       mark.textContent = "";

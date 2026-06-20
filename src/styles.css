@@ -453,6 +453,15 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .icon-btn { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; }
 .icon-btn:hover { background: var(--bg-3); color: var(--text); }
 
+/* settings → group chats */
+.gc-list { display: flex; flex-direction: column; gap: 8px; }
+.gc-item { display: flex; align-items: center; gap: 12px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+.gc-av { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-size: 18px; background: var(--bg-3); background-size: cover; background-position: center; }
+.gc-mid { flex: 1; min-width: 0; }
+.gc-name-input { width: 100%; background: var(--bg-1); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 9px; font-family: var(--font); font-size: 13.5px; outline: 0; }
+.gc-name-input:focus { border-color: var(--accent); }
+.gc-item-meta { color: var(--text-dim); font-size: 11.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* media gallery grid */
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-width: 980px; margin: 0 auto; }
 .gcell { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); cursor: pointer; }
