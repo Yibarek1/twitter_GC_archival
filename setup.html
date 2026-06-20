@@ -46,6 +46,7 @@
         <button class="btn ghost setup-browse" id="headers-browse">Browse…</button>
       </div>
       <label class="setup-label">Media folder <code>direct_messages_group_media</code> <span class="setup-req">required</span></label>
+      <p class="setup-p" style="margin:0 0 6px;font-size:12.5px;">Browse… opens any file <b>inside</b> the media folder — we use its folder.</p>
       <div class="setup-pickrow">
         <input id="src-media" class="setup-input" type="text"
           placeholder="direct_messages_group_media" />
@@ -62,6 +63,10 @@
       <h2>2 · Name the group <span class="setup-opt">optional</span></h2>
       <p class="setup-p">Restore the group's real name and photo. The photo becomes
         the sidebar brand mark. You can change these later in Settings.</p>
+      <div id="gc-grouprow" hidden>
+        <label class="setup-label" style="margin-top:0;">Which group chat</label>
+        <select id="gc-group" class="setup-input"></select>
+      </div>
       <label class="setup-label">Group name</label>
       <input id="gc-name" class="setup-input" type="text" placeholder="The GC" />
       <label class="setup-label">Group photo</label>
@@ -82,6 +87,10 @@
       <p class="setup-p">The export only has numeric IDs. Use each person's sample
         messages &amp; shared media (Twitter/X links excluded — they don't help) to
         recognize them. Add a name, a photo, and mark which one is <b>you</b>.</p>
+      <div id="people-grouprow" hidden>
+        <label class="setup-label" style="margin-top:0;">Which group chat</label>
+        <select id="people-group" class="setup-input"></select>
+      </div>
       <div id="people" class="setup-people"></div>
       <div class="setup-actions">
         <button class="btn ghost" data-back>Back</button>

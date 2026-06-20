@@ -5,7 +5,8 @@
 # All real, user-specific data lives here: config.json, the built data.js,
 # local.js (names/pfps/me/GC), copied media, and profile/group photos.
 # Written by the setup wizard (setup.html) — never commit.
-personal_data/
+# Glob covers backups too (e.g. personal_data.REAL/ created during testing).
+personal_data*/
 
 # Built archive (real messages) — regenerate with `node scripts/build.js`
 data.js
@@ -41,6 +42,10 @@ exports/
 # Working areas
 trash/
 node_modules/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
 
 # Internal planning brief (references real ids / private data)
 PLAN.md

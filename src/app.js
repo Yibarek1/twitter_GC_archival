@@ -122,13 +122,14 @@ const DEFAULTS = {
   colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], timezone: "UTC"
 };
 let settings = loadSettings();
+migratePfpsKey();
 initDateFormatters();
 function loadSettings() {
-  try { 
+  try {
     const saved = JSON.parse(localStorage.getItem("gca.settings") || "{}");
     const s = Object.assign({}, DEFAULTS, saved);
     s.names = Object.assign({}, DEFAULTS.names, saved.names || {});
-    s.pfps = Object.assign({}, DEFAULTS.pfps, saved.pfps || {});
+    s.pfps = loadPfps(saved.pfps);
     s.colors = Object.assign({}, DEFAULTS.colors, saved.colors || {});
     if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
     s.pins = Array.isArray(saved.pins) ? saved.pins.slice() : [];   // own array, never share DEFAULTS.pins
@@ -140,7 +141,40 @@ function loadSettings() {
     return JSON.parse(JSON.stringify(DEFAULTS)); 
   }
 }
-function saveSettings() { try { localStorage.setItem("gca.settings", JSON.stringify(settings)); } catch (e) {} }
+const PFPS_KEY = "gca.pfps";
+// Profile-picture data URLs are bulky; persist them under their OWN localStorage
+// key so an over-quota photo can never block names/pins/saved searches from
+// saving. (Previously photos lived inside the gca.settings blob, where one large
+// upload tripped QuotaExceededError and silently wiped ALL settings.)
+function loadPfps(legacy) {
+  try {
+    const raw = localStorage.getItem(PFPS_KEY);
+    if (raw != null) return JSON.parse(raw) || {};
+  } catch (e) { /* fall through to legacy/migration */ }
+  // migrate-on-read: older builds kept pfps inside gca.settings
+  return (legacy && typeof legacy === "object") ? Object.assign({}, legacy) : {};
+}
+// Persist the pfp map. Returns false (and warns) if storage is full, leaving the
+// previously-saved photos and every other setting intact.
+function savePfps() {
+  try { localStorage.setItem(PFPS_KEY, JSON.stringify(settings.pfps || {})); return true; }
+  catch (e) { toast("That photo was too large to save — your names and other settings are safe."); return false; }
+}
+function saveSettings() {
+  try {
+    const toStore = Object.assign({}, settings); delete toStore.pfps;   // pfps live under PFPS_KEY
+    localStorage.setItem("gca.settings", JSON.stringify(toStore));
+  } catch (e) { toast("Couldn't save settings — browser storage may be full."); }
+}
+// One-time: lift any pfps still embedded in gca.settings into their own key, so
+// existing users' photos survive the move off the settings blob.
+function migratePfpsKey() {
+  try {
+    if (localStorage.getItem(PFPS_KEY) == null && settings.pfps && Object.keys(settings.pfps).length) {
+      savePfps(); saveSettings();
+    }
+  } catch (e) { /* best-effort */ }
+}
 
 function ignoredUserIds() {
   const ids = []
@@ -215,6 +249,40 @@ function togglePin(msgId) {
   if (curView === "pins") renderPins();
 }
 function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
+
+/* ---- Accessibility: modal dialog focus management ------------------------ */
+// Overlays (lightbox, command palette, profile/context modals) are plain divs.
+// These helpers make them behave like real dialogs: expose role/aria-modal, trap
+// Tab focus inside, move focus in on open, and restore focus to the opener on close.
+let modalOpener = null;
+const FOCUSABLE_SEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),video[controls],[tabindex]:not([tabindex="-1"])';
+function focusablesIn(root) {
+  return [...root.querySelectorAll(FOCUSABLE_SEL)]
+    .filter((n) => n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+}
+function trapTab(e) {
+  if (e.key !== "Tab") return;
+  const box = e.currentTarget;
+  const f = focusablesIn(box);
+  if (!f.length) { e.preventDefault(); return; }
+  const first = f[0], last = f[f.length - 1], act = document.activeElement;
+  if (e.shiftKey && (act === first || !box.contains(act))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && (act === last || !box.contains(act))) { e.preventDefault(); first.focus(); }
+}
+function applyDialog(box, label, opts) {
+  opts = opts || {};
+  if (!opts.keepOpener) modalOpener = document.activeElement;   // remember who opened it
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  if (label) box.setAttribute("aria-label", label);
+  box.addEventListener("keydown", trapTab);
+  const initial = (opts.initial && box.querySelector(opts.initial)) || focusablesIn(box)[0];
+  if (initial && initial.focus) { try { initial.focus(); } catch (e) {} }
+}
+function restoreFocus() {
+  if (modalOpener && modalOpener.focus && document.contains(modalOpener)) { try { modalOpener.focus(); } catch (e) {} }
+  modalOpener = null;
+}
 
 /* ---- Time → index (binary search; MSGS is sorted ascending by t) --------- */
 function indexForTime(t) {
@@ -329,7 +397,13 @@ function renderText(raw, urls) {
     const info = shorts[u];
     const href = info ? info.e : u;
     const label = info ? (info.d || info.e) : u;
-    out += '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(label) + "</a>" + esc(trail);
+    // Only http/https/mailto become live links. An "expanded" URL comes from the
+    // export and is attacker-influenceable, so a javascript:/data: scheme is
+    // rendered as inert text rather than a clickable anchor.
+    const safe = /^(?:https?:|mailto:)/i.test(String(href).trim());
+    out += safe
+      ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(label) + "</a>" + esc(trail)
+      : esc(label) + esc(trail);
     last = m.index + m[0].length;
   }
   out += esc(raw.slice(last));
@@ -380,17 +454,24 @@ function renderMsg(i, opts) {
   if (m.r) body.appendChild(renderReacts(m.r));
   wrap.appendChild(body);
 
-  if (opts.clickable) wrap.addEventListener("click", () => jumpTo(i));
+  if (opts.clickable) {
+    wrap.tabIndex = 0;
+    wrap.setAttribute("role", "button");
+    wrap.addEventListener("click", () => jumpTo(i));
+    wrap.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpTo(i); } });
+  }
   return wrap;
 }
 function renderMedia(m, i) {
   const d = el("div", "media");
   if (m.k === "img") {
     const img = el("img"); img.loading = "lazy"; img.src = m.m;
+    img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
     img.addEventListener("click", (e) => { e.stopPropagation(); openLightbox(i); });
     d.appendChild(img);
   } else if (m.k === "vid") {
     const v = document.createElement("video"); v.src = m.m; v.controls = true; v.preload = "none";
+    v.setAttribute("aria-label", "Video from " + nameOf(m.s) + " · " + DT.format(m.t));
     v.addEventListener("click", (e) => e.stopPropagation());
     d.appendChild(v);
   } else {
@@ -424,7 +505,7 @@ function openLightbox(i) {
     pos = found >= 0 ? found : 0;
   }
   lbState.pos = Math.max(0, Math.min(pos, list.length - 1));
-  
+  modalOpener = document.activeElement;   // remember focus to restore on close
   renderLightbox();
 }
 
@@ -435,7 +516,7 @@ function renderLightbox() {
   const box = el("div", "lightbox");
   lbState.box = box;
   
-  const close = () => { box.remove(); lbState.box = null; document.removeEventListener("keydown", lbKeyHandler); };
+  const close = () => { box.remove(); lbState.box = null; document.removeEventListener("keydown", lbKeyHandler); restoreFocus(); };
   box.addEventListener("click", (e) => { if (e.target === box) close(); });
   
   const x = el("button", "lb-close", "✕"); x.onclick = close; box.appendChild(x);
@@ -467,7 +548,7 @@ function renderLightbox() {
     mediaEl = document.createElement("video"); mediaEl.src = m.m; mediaEl.controls = true; mediaEl.autoplay = true;
     mediaEl.onclick = (e) => e.stopPropagation();
   } else {
-    mediaEl = el("img"); mediaEl.src = m.m;
+    mediaEl = el("img"); mediaEl.src = m.m; mediaEl.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
     let scale = 1, panning = false, pointX = 0, pointY = 0, start = { x: 0, y: 0 };
     mediaEl.onmousedown = (e) => { e.preventDefault(); start = { x: e.clientX - pointX, y: e.clientY - pointY }; panning = true; };
     mediaEl.onmouseup = () => (panning = false);
@@ -490,13 +571,14 @@ function renderLightbox() {
   box.appendChild(cap);
   
   document.body.appendChild(box);
-  
+  applyDialog(box, "Media viewer", { initial: ".lb-close", keepOpener: true });
+
   document.removeEventListener("keydown", lbKeyHandler);
   document.addEventListener("keydown", lbKeyHandler);
 }
 
 function lbKeyHandler(e) {
-  if (e.key === "Escape") { if(lbState.box) lbState.box.remove(); lbState.box = null; document.removeEventListener("keydown", lbKeyHandler); }
+  if (e.key === "Escape") { if(lbState.box) lbState.box.remove(); lbState.box = null; document.removeEventListener("keydown", lbKeyHandler); restoreFocus(); }
   if (e.key === "ArrowLeft" && lbState.pos > 0) { lbState.pos--; renderLightbox(); }
   if (e.key === "ArrowRight" && lbState.pos < lbState.idxList.length - 1) { lbState.pos++; renderLightbox(); }
 }
@@ -916,19 +998,8 @@ function ensureTimelineShell() {
     <div class="scroll" id="tl-scroll" style="position:relative;">
       <div class="list" id="tl-list"></div>
     </div>
-    <div id="tl-scrubber" class="scrubber"></div>
   `;
-  tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list"), scrubber: v.querySelector("#tl-scrubber") };
-
-  // Jump-to-date control at the top of the scrubber
-  const jd = el("div", "scrub-date");
-  const di = document.createElement("input"); di.type = "date";
-  di.min = new Date(MSGS[0].t).toISOString().slice(0, 10);
-  di.max = new Date(MSGS[N - 1].t).toISOString().slice(0, 10);
-  di.title = "Jump to date";
-  di.onchange = () => { if (di.value) jumpToDate(di.value); };
-  jd.appendChild(di);
-  tlEls.scrubber.appendChild(jd);
+  tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list") };
 
   virtObs = new IntersectionObserver((entries) => {
     entries.forEach(e => {
@@ -943,17 +1014,6 @@ function ensureTimelineShell() {
       }
     });
   }, { root: tlEls.scroll, rootMargin: "1500px" });
-
-  const years = {};
-  for(let i=0; i<N; i+=100) {
-     const y = new Date(MSGS[i].t).getFullYear();
-     if (!years[y]) years[y] = i;
-  }
-  Object.keys(years).forEach(y => {
-     const b = el("button", "scrub-btn", y);
-     b.onclick = () => jumpTo(years[y]);
-     tlEls.scrubber.appendChild(b);
-  });
 }
 
 function openTimeline(anchor) {
@@ -1727,7 +1787,7 @@ function renderStats() {
     const stat = s.responseStats[p.id];
     if (stat && stat.count > 0) {
       const avgMs = stat.sum / stat.count;
-      let displayTime = "";
+      let displayTime;
       if (avgMs < 60000) {
         displayTime = Math.round(avgMs / 1000) + "s";
       } else {
@@ -2079,73 +2139,6 @@ function renderStats() {
 }
 
 /* ===========================================================================
-   LOCAL MARKOV CHAIN SIMULATOR (THE HALLUCINATOR)
-   ======================================================================== */
-const markovModels = {};
-
-function buildMarkovModel(userId) {
-  if (markovModels[userId]) return markovModels[userId];
-  
-  const model = {};
-  for (let i = 0; i < N; i++) {
-    const m = MSGS[i];
-    if (m.s !== userId || !m.x) continue;
-    
-    const words = m.x.split(/\s+/).filter(Boolean);
-    if (words.length === 0) continue;
-    
-    for (let j = 0; j < words.length; j++) {
-      const w = words[j];
-      const nextW = j < words.length - 1 ? words[j+1] : null;
-      
-      if (!model[w]) model[w] = { total: 0, next: {} };
-      model[w].total++;
-      if (nextW) {
-        model[w].next[nextW] = (model[w].next[nextW] || 0) + 1;
-      } else {
-        model[w].next["__END__"] = (model[w].next["__END__"] || 0) + 1;
-      }
-    }
-    
-    if (!model["__START__"]) model["__START__"] = { total: 0, next: {} };
-    model["__START__"].total++;
-    model["__START__"].next[words[0]] = (model["__START__"].next[words[0]] || 0) + 1;
-  }
-  
-  markovModels[userId] = model;
-  return model;
-}
-
-function simulateUser(userId) {
-  const model = buildMarkovModel(userId);
-  if (!model["__START__"]) return "Not enough data to simulate.";
-  
-  let current = "__START__";
-  const result = [];
-  
-  for (let i = 0; i < 50; i++) {
-    const node = model[current];
-    if (!node || Object.keys(node.next).length === 0) break;
-    
-    let rand = Math.random() * node.total;
-    let chosen = null;
-    for (const [nextW, count] of Object.entries(node.next)) {
-      rand -= count;
-      if (rand <= 0) {
-        chosen = nextW;
-        break;
-      }
-    }
-    
-    if (chosen === "__END__" || chosen === null) break;
-    result.push(chosen);
-    current = chosen;
-  }
-  
-  return result.length > 0 ? result.join(" ") : "Not enough data to simulate.";
-}
-
-/* ===========================================================================
    PEOPLE VIEW
    ======================================================================== */
 function renderPeople() {
@@ -2172,7 +2165,10 @@ function personCard(p) {
     const reader = new FileReader();
     reader.onload = () => {
       const url = reader.result;
-      settings.pfps[p.id] = url; PFPS[p.id] = url; saveSettings();
+      settings.pfps[p.id] = url; PFPS[p.id] = url;
+      // If the photo can't be saved (over quota), roll back so state matches
+      // storage; savePfps() has already warned the user.
+      if (!savePfps()) { delete settings.pfps[p.id]; delete PFPS[p.id]; }
       renderPeople();
       if (typeof updateBrand === "function") updateBrand();
     };
@@ -2181,7 +2177,7 @@ function personCard(p) {
   avWrap.appendChild(av); avWrap.appendChild(pick); avWrap.appendChild(file);
   if (PFPS[p.id]) {
     const rm = el("button", "btn sm ghost pfp-rm", "Remove");
-    rm.onclick = () => { delete settings.pfps[p.id]; delete PFPS[p.id]; saveSettings(); renderPeople(); updateBrand(); };
+    rm.onclick = () => { delete settings.pfps[p.id]; delete PFPS[p.id]; savePfps(); renderPeople(); updateBrand(); };
     avWrap.appendChild(rm);
   }
   card.appendChild(avWrap);
@@ -2225,22 +2221,9 @@ function personCard(p) {
     main.appendChild(mw);
   }
 
-  const simRes = el("div", "sample", "");
-  simRes.style.marginTop = "8px";
-  simRes.style.color = "var(--accent)";
-  simRes.hidden = true;
-  main.appendChild(simRes);
-  
   card.appendChild(main);
 
   const side = el("div", "person-side");
-  const simBtn = el("button", "btn sm ghost", "Simulate User");
-  simBtn.onclick = () => {
-    simRes.textContent = "🤖 " + simulateUser(p.id);
-    simRes.hidden = false;
-  };
-  side.appendChild(simBtn);
-
   const me = el("label", "me-toggle");
   const radio = document.createElement("input"); radio.type = "checkbox"; radio.checked = settings.me === p.id;
   radio.addEventListener("change", () => { settings.me = radio.checked ? p.id : (settings.me === p.id ? null : settings.me); saveSettings(); renderPeople(); });
@@ -2384,6 +2367,7 @@ function renderSettings() {
         if (imported && (imported.names || imported.colors || imported.accent)) {
           settings = Object.assign({}, DEFAULTS, imported);
           saveSettings();
+          savePfps();   // imported photos live under their own key now
           applyTheme();
           renderSettings();
           toast("Settings imported successfully");
@@ -2412,7 +2396,11 @@ function setView(name) {
   curView = name;
   try { localStorage.setItem("gca.lastView", name); } catch(e) {}
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
-  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+  document.querySelectorAll(".nav-item").forEach((b) => {
+    const on = b.dataset.view === name;
+    b.classList.toggle("active", on);
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
   if (name === "search") { ensureSearch(); setTimeout(() => sEls.input && sEls.input.focus(), 0); }
   else if (name === "timeline") { if (!tlBuilt) openTimeline(0); }
   else if (name === "stats") renderStats();
@@ -2428,9 +2416,6 @@ function setView(name) {
   else if (name === "chains") renderChains();
 }
 
-// A name that does NOT depend on the active conversation's GENERIC map, so
-// conversation-picker labels stay stable/distinct no matter what's open.
-function stableName(id) { return settings.names[id] || LOCAL_NAMES[id] || ("User " + String(id).slice(-4)); }
 function convLabel(c) {
   if (!c) return "Conversation";
   if (c.title) return c.title;
@@ -2439,11 +2424,14 @@ function convLabel(c) {
 
 function updateBrand() {
   const nameEv = EVENTS.filter((e) => e.type === "name");
-  const gcName = (LOCAL_GC && LOCAL_GC.name) || settings.gcName;
+  // LOCAL_GC is per-conversation { convId: { name, photo } }; older builds wrote a
+  // single flat { name, photo } that applied to every group — support both.
+  const gc = LOCAL_GC ? (LOCAL_GC[CONV && CONV.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
+  const gcName = (gc && gc.name) || settings.gcName;
   const title = gcName || (CONV && CONV.title) || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(CONV));
   // Restore the real group photo on the sidebar brand mark when present.
   const mark = document.querySelector(".brand-mark");
-  const gcPhoto = (LOCAL_GC && LOCAL_GC.photo) || settings.gcPhoto;
+  const gcPhoto = (gc && gc.photo) || settings.gcPhoto;
   if (mark) {
     if (gcPhoto) {
       mark.textContent = "";
@@ -2492,14 +2480,19 @@ function init() {
     };
   }
 
+  // Decorative glyphs in nav items — hide from assistive tech so the label reads cleanly.
+  document.querySelectorAll(".nav-ico").forEach((s) => s.setAttribute("aria-hidden", "true"));
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openCommandPalette(); return; }
     if (e.key === "Escape") {
-      const cmdk = document.querySelector(".cmdk"); if (cmdk) { cmdk.remove(); return; }
-      const ctx = document.querySelector(".ctx-modal"); if (ctx) { ctx.remove(); return; }
+      const cmdk = document.querySelector(".cmdk"); if (cmdk) { cmdk.remove(); restoreFocus(); return; }
+      const ctx = document.querySelector(".ctx-modal"); if (ctx) { ctx.remove(); restoreFocus(); return; }
       const kb = document.querySelector(".kb-modal");
-      if (kb) { kb.remove(); return; }
-      document.querySelectorAll(".lightbox").forEach((l) => l.remove());
+      if (kb) { kb.remove(); restoreFocus(); return; }
+      const prof = document.querySelector(".profile-modal"); if (prof) { prof.remove(); restoreFocus(); return; }
+      const lbs = document.querySelectorAll(".lightbox");
+      if (lbs.length) { lbs.forEach((l) => l.remove()); restoreFocus(); }
       closePopovers();
     }
     if (curView === "wrapped" && !document.querySelector(".cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal") && document.activeElement.tagName !== "INPUT") {
@@ -2912,7 +2905,7 @@ function drawWrappedSlide() {
   wrappedSlide = Math.max(0, Math.min(slides.length - 1, wrappedSlide));
   const s = slides[wrappedSlide];
 
-  let inner = "";
+  let inner;
   if (s.kind === "intro" || s.kind === "outro") {
     inner = `<div class="wr-hero ${s.kind}"><div class="wr-big">${esc(String(s.big))}</div>
       <div class="wr-label">${esc(s.label)}</div><div class="wr-sub">${esc(s.sub)}</div></div>`;
@@ -2929,7 +2922,6 @@ function drawWrappedSlide() {
       <div class="wr-label">${esc(s.label)}</div><div class="wr-sub">${esc(s.sub)}</div>
       <div class="wr-wordchips">${chips}</div></div>`;
   } else if (s.kind === "star") {
-    const m = MSGS[s.i];
     inner = `<div class="wr-hero"><div class="wr-emoji">⭐</div>
       <div class="wr-label">Most-reacted message of ${w.year}</div>
       <div class="wr-sub">${fmtNum(s.rc)} reaction${s.rc === 1 ? "" : "s"}</div>
@@ -2966,7 +2958,7 @@ function paintWrappedDots(n) {
 /* ---- Keyboard shortcuts modal ------------------------------------------- */
 function toggleKeyboardHelp() {
   const existing = document.querySelector(".kb-modal");
-  if (existing) { existing.remove(); return; }
+  if (existing) { existing.remove(); restoreFocus(); return; }
   const modal = el("div", "kb-modal");
   modal.innerHTML = `
     <div class="kb-content">
@@ -2985,9 +2977,11 @@ function toggleKeyboardHelp() {
       </div>
       <div class="kb-footer">Press <kbd>Esc</kbd> or <kbd>?</kbd> to close</div>
     </div>`;
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
-  modal.querySelector(".kb-close").onclick = () => modal.remove();
+  const closeKb = () => { modal.remove(); restoreFocus(); };
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeKb(); });
+  modal.querySelector(".kb-close").onclick = closeKb;
   document.body.appendChild(modal);
+  applyDialog(modal, "Keyboard shortcuts", { initial: ".kb-close" });
 }
 
 /* ---- User Profile Modal -------------------------------------------------- */
@@ -3056,13 +3050,15 @@ function openProfileModal(id) {
     </div>
   `;
   
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
-  modal.querySelector(".profile-card-close").onclick = () => modal.remove();
-  
+  const closeProfile = () => { modal.remove(); restoreFocus(); };
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeProfile(); });
+  modal.querySelector(".profile-card-close").onclick = closeProfile;
+
   const avInner = modal.querySelector(".av");
   if (avInner) { avInner.classList.remove("av-clickable"); avInner.style.cursor = "default"; }
-  
+
   document.body.appendChild(modal);
+  applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close" });
 }
 
 /* ===========================================================================
@@ -3117,7 +3113,8 @@ function openContextPeek(center) {
   const card = el("div", "ctx-card");
   const head = el("div", "ctx-head");
   head.innerHTML = '<div class="ctx-title">Conversation context</div>';
-  const close = el("button", "kb-close", "✕"); close.onclick = () => modal.remove();
+  const closeCtx = () => { modal.remove(); restoreFocus(); };
+  const close = el("button", "kb-close", "✕"); close.onclick = closeCtx;
   head.appendChild(close);
   card.appendChild(head);
 
@@ -3141,8 +3138,9 @@ function openContextPeek(center) {
   card.appendChild(foot);
 
   modal.appendChild(card);
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeCtx(); });
   document.body.appendChild(modal);
+  applyDialog(modal, "Conversation context", { initial: ".kb-close" });
   const c = bodyEl.querySelector(".ctx-center");
   if (c) c.scrollIntoView({ block: "center" });
 }
@@ -3156,7 +3154,7 @@ function exportQuoteCard(i) {
   if (!text) { toast("Nothing to quote"); return; }
   const cs = getComputedStyle(document.documentElement);
   const cv = (n, fb) => (cs.getPropertyValue(n).trim() || fb);
-  const bg = cv("--bg-1", "#0a0e17"), bg2 = cv("--bg-2", "#111726"), line = cv("--line", "#1e2740");
+  const bg = cv("--bg-1", "#0a0e17");
   const accent = settings.accent || "#3b82f6";
   const txtCol = cv("--text", "#e8edf7"), dim = cv("--text-faint", "#5d6a8c");
   const pColor = colorOf(m.s);
@@ -3262,7 +3260,7 @@ function buildCommands() {
   }});
   cmds.push({ ico: "🎲", label: "Shuffle theme (surprise me)", hint: "Theme", run: () => shuffleTheme() });
   // People → jump to their first message
-  PARTS.forEach((p) => cmds.push({ ico: "👤", label: "Go to " + nameOf(p.id) + "'s first message", hint: "Person", run: () => jumpTo(ID2IDX.get(p.id) != null ? indexForTime(p.first) : 0) }));
+  PARTS.forEach((p) => cmds.push({ ico: "👤", label: "Go to " + nameOf(p.id) + "'s first message", hint: "Person", run: () => jumpTo(indexForTime(p.first)) }));
   // Saved searches
   (settings.saved || []).forEach((s) => cmds.push({ ico: "★", label: "Search: " + s.name, hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
   return cmds;
@@ -3272,7 +3270,7 @@ function openCommandPalette() {
   const all = buildCommands();
   const modal = el("div", "cmdk");
   modal.innerHTML = `<div class="cmdk-card">
-      <input class="cmdk-input" type="text" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
+      <input class="cmdk-input" type="text" aria-label="Command, person, or date" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
       <div class="cmdk-list"></div>
       <div class="cmdk-foot"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>↵</kbd> select · <kbd>Esc</kbd> close</div>
     </div>`;
@@ -3320,10 +3318,11 @@ function openCommandPalette() {
   });
   function ensureVisible() { const r = listEl.querySelectorAll(".cmdk-row")[sel]; if (r) r.scrollIntoView({ block: "nearest" }); }
 
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener("click", (e) => { if (e.target === modal) { modal.remove(); restoreFocus(); } });
   document.body.appendChild(modal);
   refresh();
-  input.focus();
+  // applyDialog captures the opener (for focus restore) before focusing the input.
+  applyDialog(modal, "Command palette", { initial: ".cmdk-input" });
 }
 
 // NOTE: boot happens at the very end of this IIFE (see bottom of file), after

@@ -23,8 +23,8 @@ synthetic demo data](docs/screenshot.png)
   list/grid views, saved searches, and CSV/JSON export.
 - **Multiple group chats** — a conversation picker switches between every
   group in your export. Every view is scoped to the selected group.
-- **Virtual timeline** — scrolls 100K+ messages smoothly with a date scrubber
-  and jump-to-date.
+- **Virtual timeline** — scrolls 100K+ messages smoothly, with jump-to-date
+  from the Cmd/Ctrl-K command palette.
 - **Gallery** of every photo & video, with a lightbox.
 - **Hall of Fame** — most-reacted messages, podium + leaderboards by year.
 - **Wrapped** — animated year-in-review slideshows.
@@ -95,9 +95,16 @@ node scripts/server.js                 # -> http://localhost:8765
    `direct-messages-group-headers.js`, and your media folder (all three required;
    native file dialogs on Windows), then **Build**.
 2. **Group** *(optional)* — set the group name + photo (becomes the sidebar mark).
-3. **People** *(optional)* — each participant card shows sample messages and a few
-   pieces of media they shared (Twitter/X links excluded — they don't help you
-   tell people apart). Name them, add a photo, and mark which one is **you**.
+   With several group chats, a **group selector** lets you set each one's name and
+   photo independently.
+3. **People** *(optional)* — scoped to **one group at a time** (switch with the
+   same group selector), so you only name the people in the chat you care about.
+   Each participant card shows sample messages and a few pieces of media they
+   shared (Twitter/X links excluded — they don't help you tell people apart; click
+   a thumbnail to enlarge it). Name them, add a photo, and mark which one is
+   **you**. **Remove** anyone you'd rather not keep (a bot, a stranger) — they're
+   dropped from the archive (undo-able before you finish). *(Names & photos are
+   keyed by user id, so the same person keeps their name across every group.)*
 4. **Finish** — saves everything and links to the archive.
 
 Everything the wizard writes lands in one git-ignored folder, **`personal_data/`**
@@ -141,10 +148,12 @@ window.CHAT_DATA = {
 The viewer also accepts the older single-conversation shape
 (`{ conversationId, msgs, events }`) for backward compatibility.
 
-Private builds can omit known bad/export-only users by adding an
-`ignoredUsers: ["user-id"]` array to `personal_data/config.json` before running
-the wizard build, or by setting `window.LOCAL_IGNORED_USERS` in a gitignored
-local override.
+Private builds can omit known bad/export-only users with the **Remove** button on
+the wizard's People step (it writes `window.LOCAL_IGNORED_USERS` to
+`personal_data/local.js` and records the ids in `config.json` so future rebuilds
+drop them too). You can also set `ignoredUsers: ["user-id"]` in
+`personal_data/config.json` by hand before a build, or `window.LOCAL_IGNORED_USERS`
+in a gitignored local override.
 
 ---
 

@@ -5,10 +5,16 @@
   "description": "Offline browser for Twitter/X group DM exports.",
   "scripts": {
     "start": "node scripts/server.js",
-    "test": "playwright test",
-    "test:smoke": "playwright test tests/smoke.spec.js"
+    "test": "npm run test:unit && npm run test:smoke",
+    "test:unit": "node --test \"tests/**/*.test.js\"",
+    "test:smoke": "playwright test tests/smoke.spec.js",
+    "test:e2e": "playwright test",
+    "lint": "eslint ."
   },
   "devDependencies": {
-    "@playwright/test": "^1.54.0"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.54.0",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0"
   }
 }

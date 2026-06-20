@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
-  <div id="boot" class="boot">
+  <div id="boot" class="boot" aria-hidden="true">
     <div class="skeleton-wrap">
       <div class="skeleton-msg"><div class="skeleton-av"></div><div class="skeleton-bubble" style="width:40%"></div></div>
       <div class="skeleton-msg"><div class="skeleton-av"></div><div class="skeleton-bubble" style="width:70%"></div></div>
@@ -20,7 +20,7 @@
 
   <div id="app" class="app" hidden>
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Sidebar">
       <div class="brand">
         <!-- The real group photo (gc_photo.jpg) is private/gitignored; the
              committed app uses a neutral gradient mark. -->
@@ -31,7 +31,7 @@
         </div>
       </div>
       <div class="conv-picker" id="conv-picker" hidden></div>
-      <nav class="nav" id="nav">
+      <nav class="nav" id="nav" aria-label="Views">
         <div class="nav-section">
           <div class="nav-label">Explore</div>
           <button class="nav-item active" data-view="search"><span class="nav-ico">⌕</span> Search</button>

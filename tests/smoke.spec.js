@@ -40,14 +40,15 @@ test("timeline renders and jumps by date", async ({ page }) => {
 
   await page.locator('[data-view="timeline"]').click();
   await expect(page.locator("#tl-scroll")).toBeVisible();
+  await expect(page.locator("#tl-list .msg").first()).toBeVisible();
 
-  const dateInput = page.locator('#tl-scrubber input[type="date"]');
-  await expect(dateInput).toBeVisible();
-  await dateInput.evaluate((input) => {
-    input.value = input.min;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  // The old floating scrubber rail overlapped the scrollbar and is gone.
+  await expect(page.locator("#tl-scrubber")).toHaveCount(0);
 
+  // Jump-by-date now lives in the Ctrl/Cmd-K command palette.
+  await page.keyboard.press("Control+K");
+  await page.locator(".cmdk-input").fill("2020-06-01");
+  await page.getByText(/Jump to 2020-06-01/).click();
   await expect(page.locator("#tl-list .msg").first()).toBeVisible();
 });
 

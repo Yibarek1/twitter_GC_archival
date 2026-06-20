@@ -19,6 +19,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const { collectParticipants } = require("./build-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
@@ -35,12 +36,6 @@ const TYPES = {
 };
 
 /* ---- small helpers ------------------------------------------------------- */
-const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
-const IMG = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
-const VID = new Set(["mp4", "mov", "webm", "m4v"]);
-const kindOf = (p) => { const e = String(p).split(".").pop().toLowerCase(); return IMG.has(e) ? "img" : VID.has(e) ? "vid" : "file"; };
-const rel = (p) => path.relative(ROOT, p).split(path.sep).join("/");
-
 function httpError(code, message) {
   const err = new Error(message);
   err.statusCode = code;
@@ -111,7 +106,11 @@ function nativePick(kind, which) {
   if (process.platform !== "win32") return null;
   let ps;
   if (kind === "folder") {
-    ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.FolderBrowserDialog;$d.Description='Select your direct_messages_group_media folder';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.SelectedPath)};$o.Dispose()";
+    // Use the SAME modern file dialog as the .js pickers (FolderBrowserDialog is
+    // the old tree-view style, which looks inconsistent). The user opens any file
+    // inside their media folder and we return that file's parent directory.
+    const title = "Open ANY file inside your direct_messages_group_media folder";
+    ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Title='" + title + "';$d.Filter='All files (*.*)|*.*';$d.Multiselect=$false;if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write([System.IO.Path]::GetDirectoryName($d.FileName))};$o.Dispose()";
   } else {
     const headers = which === "headers";
     const title = headers ? "Select direct-messages-group-headers.js" : "Select direct-messages-group.js";
@@ -173,7 +172,7 @@ function apiSource(body, res) {
   saveConfig(cfg);
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
-  let buildLog = "";
+  let buildLog;
   try { buildLog = execFileSync(process.execPath, [path.join(__dirname, "build.js")], { cwd: ROOT }).toString(); }
   catch (e) { return sendJSON(res, 500, { error: "Build failed: " + (e.stderr ? e.stderr.toString() : e.message) }); }
 
@@ -184,31 +183,12 @@ function apiSource(body, res) {
 }
 
 /* ---- endpoint: participants for the naming step -------------------------- */
-function apiParts(res) {
+// `group` (optional) scopes the roster to one conversation so the wizard names
+// one group chat at a time, instead of merging everyone across all groups.
+function apiParts(res, group) {
   const data = readBuiltData();
   if (!data) return sendJSON(res, 400, { error: "No built data yet — complete step 1 first." });
-  const map = new Map();
-  for (const c of (data.conversations || [])) {
-    for (const m of (c.msgs || [])) {
-      let p = map.get(m.s);
-      if (!p) { p = { id: m.s, count: 0, samples: [], _seen: new Set(), media: [] }; map.set(m.s, p); }
-      p.count++;
-      const t = (m.x || "").trim();
-      if (t.length > 14 && !/^https?:/.test(t) && !X_LINK.test(t) && p.samples.length < 40) {
-        const k = t.toLowerCase();
-        if (!p._seen.has(k)) { p._seen.add(k); p.samples.push(t); }
-      }
-      if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k || kindOf(m.m) });
-    }
-  }
-  const parts = [...map.values()]
-    .sort((a, b) => b.count - a.count)
-    .map((p) => ({
-      id: p.id, count: p.count,
-      samples: p.samples.sort((a, b) => b.length - a.length).slice(0, 10),
-      media: p.media,
-    }));
-  sendJSON(res, 200, { parts });
+  sendJSON(res, 200, { parts: collectParticipants(data, group) });
 }
 
 /* ---- endpoint: save names / pfps / GC photo / "this is you" --------------- */
@@ -230,16 +210,38 @@ function apiIdentity(body, res) {
   // carry forward pfps saved in a previous run that weren't re-uploaded
   if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) if (!pfpPaths[id]) pfpPaths[id] = cfg.pfps[id];
 
-  // group photo
-  let gcPhotoPath = cfg.gcPhoto || "";
-  const gc = decodeDataUrl(body.gcPhoto);
-  if (gc) { const fname = "pfps/gc." + gc.ext; fs.writeFileSync(path.join(PERSONAL, fname), gc.buf); gcPhotoPath = "personal_data/" + fname; }
+  // per-group name + photo: { convId: { name, photo } }. Each group keeps its own.
+  // photo may be a fresh data URL (→ saved to a per-group file) or an existing
+  // personal_data/ path to carry forward. Previous groups not re-submitted are kept.
+  const gcIn = body.gc && typeof body.gc === "object" ? body.gc : {};
+  const gcOut = Object.assign({}, cfg.gc || {});
+  for (const cid of Object.keys(gcIn)) {
+    const entry = gcIn[cid] || {};
+    const name = entry.name != null ? String(entry.name) : ((gcOut[cid] && gcOut[cid].name) || "");
+    let photo = (gcOut[cid] && gcOut[cid].photo) || "";
+    const d = decodeDataUrl(entry.photo);
+    if (d) {
+      const fname = "pfps/gc-" + String(cid).replace(/[^a-zA-Z0-9_-]/g, "_") + "." + d.ext;
+      fs.writeFileSync(path.join(PERSONAL, fname), d.buf);
+      photo = "personal_data/" + fname;
+    } else if (typeof entry.photo === "string" && entry.photo && !entry.photo.startsWith("data:")) {
+      photo = entry.photo;
+    }
+    gcOut[cid] = { name, photo };
+  }
 
   const me = body.me ? String(body.me) : (cfg.me || null);
-  const gcName = body.gcName != null ? String(body.gcName) : (cfg.gcName || "");
+
+  // participants the user deleted in the wizard (LOCAL_IGNORED_USERS hides them
+  // in the app now; cfg.ignoredUsers drops them from a future merge-aware build).
+  const ignoredUsers = Array.isArray(body.ignoredUsers)
+    ? body.ignoredUsers.map(String)
+    : (Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : []);
 
   // persist into config (so a later rebuild keeps identity) …
-  cfg.me = me; cfg.gcName = gcName; cfg.gcPhoto = gcPhotoPath; cfg.names = names; cfg.pfps = pfpPaths;
+  cfg.me = me; cfg.gc = gcOut; cfg.names = names; cfg.pfps = pfpPaths;
+  cfg.ignoredUsers = ignoredUsers;
+  delete cfg.gcName; delete cfg.gcPhoto;   // migrated to per-group cfg.gc
   saveConfig(cfg);
 
   // … and write the app-facing local.js
@@ -248,9 +250,10 @@ function apiIdentity(body, res) {
     "window.LOCAL_NAMES = " + JSON.stringify(names, null, 2) + ";\n" +
     "window.LOCAL_PFPS = " + JSON.stringify(pfpPaths, null, 2) + ";\n" +
     "window.LOCAL_ME = " + JSON.stringify(me) + ";\n" +
-    "window.LOCAL_GC = " + JSON.stringify({ name: gcName, photo: gcPhotoPath }) + ";\n";
+    "window.LOCAL_GC = " + JSON.stringify(gcOut, null, 2) + ";\n" +
+    "window.LOCAL_IGNORED_USERS = " + JSON.stringify(ignoredUsers, null, 2) + ";\n";
   fs.writeFileSync(path.join(PERSONAL, "local.js"), out);
-  sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length });
+  sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length });
 }
 
 /* ---- static file serving (unchanged behavior) ---------------------------- */
@@ -311,7 +314,7 @@ http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);
-    if (req.method === "GET" && url === "/api/parts") return apiParts(res);
+    if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req), res);
   } catch (e) {
     return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });
