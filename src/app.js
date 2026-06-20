@@ -2280,6 +2280,39 @@ function personCard(p) {
 /* ===========================================================================
    SETTINGS VIEW
    ======================================================================== */
+// Merge the wizard's local.js identity (per-conversation LOCAL_GC) with the
+// in-app settings.gc into one { convId: { name, photo } } map for export.
+function effectiveGcExport() {
+  const out = {};
+  if (LOCAL_GC && typeof LOCAL_GC === "object" && !("name" in LOCAL_GC) && !("photo" in LOCAL_GC)) {
+    for (const id of Object.keys(LOCAL_GC)) {
+      const e = LOCAL_GC[id] || {};
+      out[id] = { name: e.name || "", photo: e.photo || "" };
+    }
+  }
+  for (const id of Object.keys(settings.gc || {})) {
+    const e = settings.gc[id] || {};
+    const base = out[id] || { name: "", photo: "" };
+    out[id] = { name: e.name || base.name || "", photo: e.photo || base.photo || "" };
+  }
+  return out;
+}
+
+// Build the portable identity+preferences object. Folds the wizard's LOCAL_*
+// (names/pfps/me/gc/ignored) into the settings so an exported file carries every
+// wizard-assigned name and photo — a recipient imports it and needs no setup.
+function buildExportPayload() {
+  return Object.assign({}, settings, {
+    version: 2,
+    names: Object.assign({}, LOCAL_NAMES, settings.names),
+    pfps: Object.assign({}, (typeof window !== "undefined" && window.LOCAL_PFPS) || {}, settings.pfps),
+    me: settings.me || LOCAL_ME || null,
+    gc: effectiveGcExport(),
+    ignoredUsers: [...ignoredUserIds()],
+    ignoredGroups: [...ignoredGroupIds()],
+  });
+}
+
 function renderSettings() {
   const v = document.getElementById("view-settings");
   v.innerHTML = `<div class="page"><div class="page-head"><div class="page-title">Settings</div>
@@ -2429,7 +2462,7 @@ function renderSettings() {
   };
 
   v.querySelector("#set-export").onclick = () => {
-    const data = JSON.stringify(settings, null, 2);
+    const data = JSON.stringify(buildExportPayload(), null, 2);
     const blob = new Blob([data], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2449,11 +2482,29 @@ function renderSettings() {
     reader.onload = (ev) => {
       try {
         const imported = JSON.parse(ev.target.result);
-        if (imported && (imported.names || imported.colors || imported.accent)) {
+        if (imported && (imported.names || imported.colors || imported.accent || imported.gc)) {
           settings = Object.assign({}, DEFAULTS, imported);
-          saveSettings();
-          savePfps();   // imported photos live under their own key now
+          settings.names = Object.assign({}, imported.names || {});
+          settings.colors = Object.assign({}, imported.colors || {});
+          settings.pfps = (imported.pfps && typeof imported.pfps === "object") ? imported.pfps : {};
+          settings.gc = (imported.gc && typeof imported.gc === "object") ? imported.gc : {};
+          settings.ignoredUsers = Array.isArray(imported.ignoredUsers) ? imported.ignoredUsers.map(String) : [];
+          settings.ignoredGroups = Array.isArray(imported.ignoredGroups) ? imported.ignoredGroups.map(String) : [];
+          settings.saved = Array.isArray(imported.saved) ? imported.saved : [];
+          settings.pins = Array.isArray(imported.pins) ? imported.pins.slice() : [];
+          saveSettings(); savePfps(); saveGc();   // bulky photos live under their own keys
+          // rebuild the in-place PFPS map (a const reference used across the app)
+          for (const k in PFPS) delete PFPS[k];
+          Object.assign(PFPS, (typeof window !== "undefined" && window.LOCAL_PFPS) || {}, settings.pfps);
+          // if the active conversation was just hidden by an imported ignoredGroups,
+          // jump to a still-visible one so the viewer doesn't show a removed chat
+          if (CONV && ignoredGroupIds().has(String(CONV.id))) {
+            const vis = visibleConvos();
+            if (vis[0]) activateConversation(vis[0].id, true);
+          }
           applyTheme();
+          renderConvPicker();
+          if (typeof updateBrand === "function") updateBrand();
           renderSettings();
           toast("Settings imported successfully");
         } else {

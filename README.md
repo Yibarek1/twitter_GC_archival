@@ -129,6 +129,12 @@ wizard is permanent. For a permanent local mapping you can also hand-edit
 `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` / `LOCAL_ME` /
 `LOCAL_GC`).
 
+To move your setup to another machine — or hand a friend the archive with every
+name already filled in — use **Settings → Export JSON**. It folds the wizard's
+identity (names, photos, "you", per-group names/photos, and removed users/groups)
+together with your in-app edits into one portable file that **Import JSON**
+restores, no wizard or server needed.
+
 ---
 
 ## Data schema
