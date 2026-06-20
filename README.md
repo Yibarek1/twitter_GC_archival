@@ -88,8 +88,10 @@ needs the local server (writing files needs Node).
 
 **Easiest — no terminal:** double-click **`start-setup.cmd`** (Windows) or
 **`start-setup.command`** (macOS/Linux). It starts the server and opens the wizard
-in your browser automatically. (Needs [Node.js](https://nodejs.org); on macOS/Linux
-run `chmod +x start-setup.command` once.)
+in your browser automatically, and **shuts itself down (closing its window) once
+you close the browser** — no stray process left behind. (Needs
+[Node.js](https://nodejs.org); on macOS/Linux run `chmod +x start-setup.command`
+once.)
 
 Prefer the terminal? Start it yourself:
 

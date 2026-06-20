@@ -69,4 +69,10 @@ function openerCommand(platform, url) {
   return { cmd: "xdg-open", args: [url] };
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand };
+// True when the browser heartbeat has been silent longer than `idleMs` — the
+// launcher uses this to shut the server down once the last tab is closed.
+function isIdleTimedOut(lastPing, now, idleMs) {
+  return (now - lastPing) > idleMs;
+}
+
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut };

@@ -20,13 +20,32 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
 const PORT = 8765;
 const HOST = "127.0.0.1";
+
+// When launched via the double-click launcher (`--open`), shut the server down
+// once the browser is closed — so users aren't left with a stray command window.
+// Served pages send a heartbeat (GET /api/ping); when it goes quiet, we exit.
+const AUTO_EXIT = process.argv.includes("--open");
+const IDLE_MS = 6000;
+let lastPing = 0;
+let idleWatch = null;
+function notePing() {
+  lastPing = Date.now();
+  if (AUTO_EXIT && !idleWatch) {   // arm the watchdog once the browser first connects
+    idleWatch = setInterval(() => {
+      if (isIdleTimedOut(lastPing, Date.now(), IDLE_MS)) {
+        console.log("Browser closed — shutting down.");
+        process.exit(0);
+      }
+    }, 2000);
+  }
+}
 const MAX_JSON_BODY = 64 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const TYPES = {
@@ -359,6 +378,7 @@ function serveStatic(req, res) {
 http.createServer(async (req, res) => {
   const [url, qs] = req.url.split("?");
   try {
+    if (req.method === "GET" && url === "/api/ping") { notePing(); return sendJSON(res, 200, { ok: true }); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);

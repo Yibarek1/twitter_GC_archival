@@ -17,6 +17,8 @@ const PARTS = {
 };
 
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/status", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ built: false, groups: [], ignoredGroups: [] }) }));
   await page.route("**/api/source", (route) =>
     route.fulfill({ status: 200, contentType: "application/json",
       body: JSON.stringify({ totalMsgs: 150, groups: GROUPS, mediaCopied: 0 }) }));

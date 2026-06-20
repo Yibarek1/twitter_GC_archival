@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut } = require("../scripts/server-core.js");
 
 // X names the *headers* file with singular "message"
 // (direct-message-group-headers.js) but the *messages* file with plural
@@ -58,4 +58,10 @@ test("openerCommand picks the platform's default-browser opener", () => {
   assert.deepEqual(openerCommand("win32", "http://x/setup.html"), { cmd: "cmd", args: ["/c", "start", "", "http://x/setup.html"] });
   assert.deepEqual(openerCommand("darwin", "http://x/setup.html"), { cmd: "open", args: ["http://x/setup.html"] });
   assert.deepEqual(openerCommand("linux", "http://x/setup.html"), { cmd: "xdg-open", args: ["http://x/setup.html"] });
+});
+
+test("isIdleTimedOut is true only once the heartbeat gap exceeds the idle window", () => {
+  assert.equal(isIdleTimedOut(1000, 1000 + 5000, 6000), false);  // 5s gap < 6s window
+  assert.equal(isIdleTimedOut(1000, 1000 + 6000, 6000), false);  // exactly at the window: not yet
+  assert.equal(isIdleTimedOut(1000, 1000 + 7000, 6000), true);   // 7s gap > 6s window
 });

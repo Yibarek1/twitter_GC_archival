@@ -3,6 +3,8 @@ const { test, expect } = require("@playwright/test");
 // Two groups so the group selector + remove toggle are exercised. All server
 // endpoints are mocked, so this runs identically on CI.
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/status", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ built: false, groups: [], ignoredGroups: [] }) }));
   await page.route("**/api/source", (route) =>
     route.fulfill({ status: 200, contentType: "application/json",
       body: JSON.stringify({ totalMsgs: 30, mediaCopied: 0, groups: [
