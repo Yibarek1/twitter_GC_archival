@@ -1,7 +1,15 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness } = require("../scripts/server-core.js");
+
+// A controllable clock so elapsed time can be simulated deterministically.
+function fakeClock(start) {
+  let t = start;
+  const fn = () => t;
+  fn.advance = (ms) => { t += ms; };
+  return fn;
+}
 
 // X names the *headers* file with singular "message"
 // (direct-message-group-headers.js) but the *messages* file with plural
@@ -64,4 +72,41 @@ test("isIdleTimedOut is true only once the heartbeat gap exceeds the idle window
   assert.equal(isIdleTimedOut(1000, 1000 + 5000, 6000), false);  // 5s gap < 6s window
   assert.equal(isIdleTimedOut(1000, 1000 + 6000, 6000), false);  // exactly at the window: not yet
   assert.equal(isIdleTimedOut(1000, 1000 + 7000, 6000), true);   // 7s gap > 6s window
+});
+
+test("liveness never exits before the first heartbeat arrives", () => {
+  const clock = fakeClock(0);
+  const live = makeLiveness(6000, clock);
+  clock.advance(100000);                       // lots of time, but no ping ever seen
+  assert.equal(live.shouldExit(), false);      // nothing to time out yet
+});
+
+test("liveness exits once heartbeats stop for longer than the idle window", () => {
+  const clock = fakeClock(1000);
+  const live = makeLiveness(6000, clock);
+  live.ping();                                 // browser alive
+  clock.advance(5000);
+  assert.equal(live.shouldExit(), false);      // 5s gap < 6s window
+  clock.advance(2000);                         // 7s since the last heartbeat
+  assert.equal(live.shouldExit(), true);       // browser really went away
+});
+
+// Regression: a native file picker runs execFileSync, which freezes the event
+// loop so heartbeats can't arrive while the dialog is open. The watchdog must not
+// mistake that frozen stretch for a closed browser, and the idle clock must
+// restart when the picker returns (we were actively serving the user) — not keep
+// counting from the stale pre-Browse heartbeat.
+test("liveness does not exit during or right after a long native picker", () => {
+  const clock = fakeClock(1000);
+  const live = makeLiveness(6000, clock);
+  live.ping();                                 // last heartbeat just before Browse… clicked
+  live.enter();                                // picker opens; event loop will freeze
+  clock.advance(20000);                        // user browses for 20s — no pings possible
+  assert.equal(live.shouldExit(), false, "must not exit while a picker is open");
+  live.leave();                                // picker returns
+  assert.equal(live.shouldExit(), false, "must not exit immediately after the picker closes");
+  clock.advance(5000);
+  assert.equal(live.shouldExit(), false, "idle clock restarts from when the picker closed");
+  clock.advance(2000);                         // 7s after the picker closed, still no heartbeat
+  assert.equal(live.shouldExit(), true, "normal idle timeout resumes after the picker");
 });

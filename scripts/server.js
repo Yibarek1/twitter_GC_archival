@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
@@ -33,18 +33,26 @@ const HOST = "127.0.0.1";
 // Served pages send a heartbeat (GET /api/ping); when it goes quiet, we exit.
 const AUTO_EXIT = process.argv.includes("--open");
 const IDLE_MS = 6000;
-let lastPing = 0;
+const live = makeLiveness(IDLE_MS);
 let idleWatch = null;
 function notePing() {
-  lastPing = Date.now();
+  live.ping();
   if (AUTO_EXIT && !idleWatch) {   // arm the watchdog once the browser first connects
     idleWatch = setInterval(() => {
-      if (isIdleTimedOut(lastPing, Date.now(), IDLE_MS)) {
+      if (live.shouldExit()) {
         console.log("Browser closed — shutting down.");
         process.exit(0);
       }
     }, 2000);
   }
+}
+// Bracket a synchronous, event-loop-freezing call (a native picker, the build) so
+// the auto-exit watchdog can't mistake that frozen stretch — during which the
+// browser's heartbeats can't be received — for the browser having closed.
+function duringBlocking(fn) {
+  live.enter();
+  try { return fn(); }
+  finally { live.leave(); }
 }
 const MAX_JSON_BODY = 64 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -138,7 +146,7 @@ function nativePick(kind, which) {
     ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Filter='" + filter + "';$d.Multiselect=$false;$d.Title='" + title + "';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.FileName)};$o.Dispose()";
   }
   try {
-    return execFileSync("powershell.exe", ["-STA", "-NoProfile", "-Command", ps], { encoding: "utf8", windowsHide: true }).trim();
+    return duringBlocking(() => execFileSync("powershell.exe", ["-STA", "-NoProfile", "-Command", ps], { encoding: "utf8", windowsHide: true })).trim();
   } catch (e) { return null; }
 }
 
@@ -191,7 +199,7 @@ function apiSource(body, res) {
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
   let buildLog;
-  try { buildLog = execFileSync(process.execPath, [path.join(__dirname, "build.js")], { cwd: ROOT }).toString(); }
+  try { buildLog = duringBlocking(() => execFileSync(process.execPath, [path.join(__dirname, "build.js")], { cwd: ROOT })).toString(); }
   catch (e) { return sendJSON(res, 500, { error: "Build failed: " + (e.stderr ? e.stderr.toString() : e.message) }); }
 
   const data = readBuiltData();

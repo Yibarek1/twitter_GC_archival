@@ -75,4 +75,28 @@ function isIdleTimedOut(lastPing, now, idleMs) {
   return (now - lastPing) > idleMs;
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut };
+// Liveness tracker for the launcher's auto-exit watchdog (server.js arms it only
+// under --open). Browser heartbeats (GET /api/ping) call ping(). Server-initiated
+// blocking work — the native file/folder pickers and the build — runs via a
+// synchronous execFileSync that FREEZES the event loop, so heartbeats can't arrive
+// while a picker dialog is open; that frozen stretch must never be mistaken for the
+// browser going away. enter()/leave() bracket such work: while busy the watchdog
+// holds off, and leave() refreshes the heartbeat so the idle clock restarts from
+// when the blocking call finished (we were actively serving the user) rather than
+// from the now-stale ping taken before it began. `clock` is injectable for tests.
+function makeLiveness(idleMs, clock) {
+  const now = clock || Date.now;
+  let lastPing = 0;
+  let busy = 0;
+  return {
+    ping() { lastPing = now(); },
+    enter() { busy++; },
+    leave() { if (busy > 0) busy--; lastPing = now(); },
+    isBusy() { return busy > 0; },
+    // Exit only when the browser has genuinely gone quiet: never before the first
+    // heartbeat, and never while a blocking call is still in flight.
+    shouldExit() { return busy === 0 && lastPing !== 0 && isIdleTimedOut(lastPing, now(), idleMs); },
+  };
+}
+
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness };
