@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml/badge.svg)](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml)
 
-A local viewer for your Twitter/X group chats. You hand it the group-DM files
-from your X data export, it builds a searchable archive, and you read it in your
+A local viewer for your Twitter group chats. You hand it the group-DM files from
+your Twitter data export, it builds a searchable archive, and you read it in your
 browser. Everything runs on your own machine. There's no server to host, no
 account to sign into, and nothing gets uploaded.
 
@@ -25,8 +25,8 @@ data, with all the views working, so you can poke around before adding your own.
 
 ## Add your own chats
 
-1. **Download your X data.** On X, go to **Settings → Your account → Download an
-   archive of your data**. It takes a day or two to arrive. Unzip it.
+1. **Download your Twitter data.** On Twitter, go to **Settings → Your account →
+   Download an archive of your data**. It takes a day or two to arrive. Unzip it.
 2. **Start the setup.** Double-click `start-setup.cmd` (Windows) or
    `start-setup.command` (Mac/Linux) to open the setup page in your browser.
    You'll need [Node.js](https://nodejs.org) installed first (it's free; on
@@ -44,8 +44,8 @@ git-ignored. That's where your real data stays.
 
 ### Naming people and groups
 
-X only stores numeric IDs, so everyone starts out as "User 1, User 2…". The setup
-walks you through naming them, but nothing is locked in once it's done:
+Twitter only stores numeric IDs, so everyone starts out as "User 1, User 2…". The
+setup walks you through naming them, but nothing is locked in once it's done:
 
 - **People.** Give anyone a name, a color, and a profile picture, and mark which
   one is you. Do it during setup, or later in the **People** tab.
