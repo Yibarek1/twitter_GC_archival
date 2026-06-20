@@ -113,6 +113,27 @@
       </div>
       <div class="setup-result" id="finish-result" hidden></div>
     </section>
+
+    <div class="setup-danger">
+      <button type="button" class="su-reset-link" id="btn-reset">Start over — erase setup data</button>
+    </div>
+  </div>
+
+  <div class="su-reset-modal" id="reset-modal" role="dialog" aria-modal="true" aria-label="Erase setup data" hidden>
+    <div class="su-reset-box">
+      <div class="su-reset-title">Erase all setup data?</div>
+      <p class="su-reset-msg">This deletes everything the wizard created in
+        <code>personal_data/</code> — the built archive, names, photos, and the
+        copied media &amp; source files — so you can start setup from a clean slate.
+        <b>This cannot be undone.</b></p>
+      <p class="su-reset-msg">Type <b>RESET</b> to confirm:</p>
+      <input id="reset-confirm" class="setup-input" type="text" autocomplete="off" placeholder="RESET" />
+      <div class="setup-actions">
+        <button type="button" class="btn ghost" id="reset-cancel">Cancel</button>
+        <button type="button" class="btn danger" id="reset-go" disabled>Erase &amp; start over</button>
+      </div>
+      <div class="setup-result" id="reset-result" hidden></div>
+    </div>
   </div>
 
   <script src="src/setup.js"></script>

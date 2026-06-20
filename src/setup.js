@@ -370,5 +370,35 @@ $("#btn-save").onclick = async () => {
 
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
+/* ---- reset / start over -------------------------------------------------- */
+// Wipe personal_data/ (server-side) so the user can redo setup from scratch.
+// Guarded by a typed "RESET" confirmation because it's destructive + irreversible.
+const resetModal = $("#reset-modal");
+function openReset() {
+  if (!SERVED) { needServer($("#src-result")); return; }
+  const inp = $("#reset-confirm");
+  inp.value = ""; $("#reset-go").disabled = true; $("#reset-result").hidden = true;
+  resetModal.hidden = false; inp.focus();
+}
+function closeReset() { resetModal.hidden = true; }
+$("#btn-reset").onclick = openReset;
+$("#reset-cancel").onclick = closeReset;
+$("#reset-confirm").oninput = (e) => { $("#reset-go").disabled = e.target.value.trim() !== "RESET"; };
+resetModal.onclick = (e) => { if (e.target === resetModal) closeReset(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !resetModal.hidden) { e.preventDefault(); closeReset(); } });
+$("#reset-go").onclick = async () => {
+  const out = $("#reset-result");
+  flash(out, "Erasing…", "");
+  try {
+    const r = await fetch("/api/reset", { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) { flash(out, "✗ " + (j.error || "Reset failed"), "err"); return; }
+    flash(out, "✓ Erased. Restarting setup…", "ok");
+    setTimeout(() => location.reload(), 600);
+  } catch (e) {
+    flash(out, "✗ " + e.message, "err");
+  }
+};
+
 go(1);
 })();

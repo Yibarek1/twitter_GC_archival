@@ -7,6 +7,17 @@
  */
 "use strict";
 
+const path = require("path");
+
+// True only when `target` resolves to a location STRICTLY inside `root` (a
+// descendant) — false for `root` itself, a parent, a sibling, or any path that
+// escapes via "..". The reset endpoint checks every path through this before
+// deleting, so a bug or crafted input can never reach outside personal_data/.
+function isInsidePersonal(target, root) {
+  const rel = path.relative(path.resolve(root), path.resolve(target));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
 // Build a native Windows OpenFileDialog filter string for the wizard pickers.
 // `which` is "headers" or "group" (anything else → group). The headers glob is
 // spelling-agnostic ("*group-headers*.js") because X names that file with the
@@ -50,4 +61,4 @@ function pfpFileName(name, id, ext, taken) {
   return file;
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName };
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal };

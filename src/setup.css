@@ -146,3 +146,23 @@
   font-size: 22px; line-height: 1; cursor: pointer;
 }
 .su-lightbox-close:hover { border-color: var(--accent); }
+
+/* Start-over / reset — destructive, gated by a typed RESET confirmation. */
+.setup-danger { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; }
+.su-reset-link { background: none; border: 0; color: var(--text-dim); font-size: 12.5px; cursor: pointer; text-decoration: underline; }
+.su-reset-link:hover { color: #fca5a5; }
+.su-reset-modal {
+  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px;
+  background: rgba(0, 0, 0, 0.72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.su-reset-modal[hidden] { display: none; }
+.su-reset-box {
+  width: 100%; max-width: 400px; background: var(--bg-1); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 22px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.su-reset-title { font-size: 17px; font-weight: 800; margin-bottom: 12px; color: #fca5a5; }
+.su-reset-msg { font-size: 13.5px; line-height: 1.5; margin: 0 0 12px; color: var(--text-dim); }
+.su-reset-msg code { color: var(--text); }
+.btn.danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+.btn.danger:hover:not(:disabled) { background: #dc2626; }
+.btn.danger:disabled { opacity: 0.5; cursor: not-allowed; }

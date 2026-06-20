@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
@@ -274,6 +274,22 @@ function apiIdentity(body, res) {
   sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length });
 }
 
+/* ---- endpoint: wipe personal_data/ to start setup over -------------------- */
+// Deletes the wizard's output so the user can rebuild from a clean slate. Every
+// path is checked through isInsidePersonal() first, so it can NEVER touch a file
+// outside personal_data/ (and never the separate personal_data.REAL backup).
+function apiReset(res) {
+  const targets = ["config.json", "data.js", "local.js", "source", "media", "pfps"];
+  const removed = [];
+  for (const name of targets) {
+    const p = path.join(PERSONAL, name);
+    if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard — never outside personal_data/
+    if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); removed.push(name); }
+  }
+  fs.mkdirSync(PERSONAL, { recursive: true });   // leave an empty personal_data/ behind
+  sendJSON(res, 200, { ok: true, removed });
+}
+
 /* ---- static file serving (unchanged behavior) ---------------------------- */
 function serveStatic(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -334,6 +350,7 @@ http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req), res);
+    if (req.method === "POST" && url === "/api/reset") return apiReset(res);
   } catch (e) {
     return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });
   }

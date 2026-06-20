@@ -117,6 +117,11 @@ double-clicking `index.html`.
 > **Adding a newer export later?** Just re-run the wizard. The build is
 > merge-aware, so your history accumulates and is never lost.
 
+> **Want a clean slate?** The wizard's **Start over** link (bottom of the page)
+> erases everything in `personal_data/` — you type `RESET` to confirm — so you can
+> rebuild from scratch. It only ever touches `personal_data/`; a backup kept in a
+> separate folder is left alone.
+
 ### Naming participants
 
 X exports contain only numeric user IDs, so everyone shows as **User 1, User 2,

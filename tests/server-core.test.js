@@ -1,6 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { dialogFilter, sanitizeName, pfpFileName } = require("../scripts/server-core.js");
+const path = require("node:path");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal } = require("../scripts/server-core.js");
 
 // X names the *headers* file with singular "message"
 // (direct-message-group-headers.js) but the *messages* file with plural
@@ -41,4 +42,14 @@ test("pfpFileName suffixes on collision instead of overwriting", () => {
   const out = pfpFileName("Alice", "9999", "png", taken);
   assert.notEqual(out, "alice_pfp.png");
   assert.match(out, /^alice_pfp-\w+\.png$/);
+});
+
+test("isInsidePersonal only allows deletes strictly inside the personal_data root", () => {
+  const root = path.join(__dirname, "..", "personal_data");
+  assert.equal(isInsidePersonal(path.join(root, "config.json"), root), true);
+  assert.equal(isInsidePersonal(path.join(root, "media", "x.png"), root), true);
+  assert.equal(isInsidePersonal(root, root), false);                         // the root itself
+  assert.equal(isInsidePersonal(path.join(root, ".."), root), false);        // parent
+  assert.equal(isInsidePersonal(path.join(root, "..", "other"), root), false); // sibling escape
+  assert.equal(isInsidePersonal("/etc/passwd", root), false);                // absolute outside
 });
