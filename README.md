@@ -1,101 +1,180 @@
 # Group Chat Archive
 
-[![CI](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml/badge.svg)](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml)
+A dependency-free, fully offline browser for Twitter/X group chat (group DM)
+exports. Drop in your export, run one build script, and explore years of group
+history with fuzzy search, a virtual timeline, a media gallery, year-in-review
+"Wrapped" slideshows, leaderboards, and more. No server, no API keys, no
+internet. Have several group chats? A picker switches between them.
 
-A local viewer for your Twitter group chats. You hand it the group-DM files from
-your Twitter data export, it builds a searchable archive, and you read it in your
-browser. Everything runs on your own machine. There's no server to host, no
-account to sign into, and nothing gets uploaded.
+> The repo ships with synthetic demo data. No real messages, names, or media
+> are committed. Open `index.html` and you'll see a runnable demo built from
+> `data.sample.js`. Point it at your own export to see your real history (kept
+> local and `.gitignore`d).
 
-It only handles group chats. One-on-one DMs in your export are ignored.
-
-> The repo ships with fake demo data so you can see what it does before adding
-> anything of your own. Open `index.html` and you'll get a sample with three
-> groups. No real messages, names, or media are included.
-
-![Group Chat Archive search view with the black + blue theme, running on the
-sample demo data](docs/screenshot.png)
+![Group Chat Archive search view with the black and blue theme, running on the synthetic demo data](docs/screenshot.png)
 
 ---
-
-## Try the demo
-
-Open `index.html` in your browser. You'll get a sample archive built from fake
-data, with all the views working, so you can poke around before adding your own.
-
-## Add your own chats
-
-1. **Download your Twitter data.** On Twitter, go to **Settings → Your account →
-   Download an archive of your data**. It takes a day or two to arrive. Unzip it.
-2. **Start the setup.** Double-click `start-setup.cmd` (Windows) or
-   `start-setup.command` (Mac/Linux) to open the setup page in your browser.
-   You'll need [Node.js](https://nodejs.org) installed first (it's free; on
-   Mac/Linux, run `chmod +x start-setup.command` once).
-3. **Point it at your files and build.** From the unzipped export, the setup
-   needs three things: the group messages (`direct-messages-group.js`), the group
-   headers (`direct-message-group-headers.js`), and the media folder
-   (`direct_messages_group_media/`). Browse to each one and hit build.
-
-After that, open `index.html` whenever you want to read your chats. The setup is
-only for the first build (or when you add a newer export later).
-
-Everything the setup creates lives in one folder, `personal_data/`, which is
-git-ignored. That's where your real data stays.
-
-### Naming people and groups
-
-Twitter only stores numeric IDs, so everyone starts out as "User 1, User 2…". The
-setup walks you through naming them, but nothing is locked in once it's done:
-
-- **People.** Give anyone a name, a color, and a profile picture, and mark which
-  one is you. Do it during setup, or later in the **People** tab.
-- **Groups.** Set each group's name and photo. Editable later under
-  **Settings → Group chats**.
-
-### Removing people or groups
-
-You can drop a bot, a stranger, or a dead group out of the archive entirely.
-There's a toggle for it in the setup (people and whole group chats both), and
-removed people can be brought back before you finish.
-
-### Adding a newer export later
-
-Re-run the setup with a fresh export. It merges with what's already there, so old
-messages stick around and nothing gets overwritten.
-
-### Moving to another computer, or sharing
-
-Under **Settings → Export JSON**, you can save all your names, photos, and edits
-to a single file. **Import JSON** loads it back on another machine, or lets you
-hand a friend the archive with the names already filled in. No setup or server
-needed for that part.
-
-### Starting over
-
-The setup page has a **Start over** link that wipes everything you've built so you
-can start fresh. It makes you type `RESET` first, and it only touches
-`personal_data/`.
 
 ## Features
 
-- **Search** with filters like `has:media`, `from:name`, date ranges, and exact
-  `"phrases"`.
-- **Timeline** that scrolls through years of messages, with jump-to-date.
-- **Gallery** of every photo and video, with a lightbox.
-- **Wrapped:** year-in-review slideshows.
-- **Hall of Fame:** the most-reacted messages, plus leaderboards.
-- **Stats:** who posts most, busiest hours, word clouds, milestones.
-- **Multiple group chats,** with a picker to switch between them.
-- Bookmarks, a Cmd/Ctrl-K command palette, an "on this day" view, and a black +
-  blue theme you can adjust.
+- Fuzzy search (Fuse.js) with filters: `has:media`, `has:links`, `from:name`,
+  `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting, list/grid
+  views, saved searches, and CSV/JSON export.
+- Multiple group chats: a conversation picker switches between every group in
+  your export. Every view is scoped to the selected group.
+- A virtual timeline that scrolls 100K+ messages smoothly, with a date scrubber
+  and jump-to-date.
+- Gallery of every photo and video, with a lightbox.
+- Hall of Fame: most-reacted messages, podium and leaderboards by year.
+- Wrapped, an animated year-in-review slideshow.
+- Stats covering per-person activity, word clouds, milestones, busiest hours,
+  and superlatives.
+- Threads, Chains, and Battles for playful analytics and head-to-head.
+- Bookmarks, a Cmd/Ctrl-K command palette, a Time Capsule ("on this day"),
+  Random Quote, context-peek, and quote-card PNG export.
+- Theming: black and blue, customizable accent, density, and theme shuffle. All
+  preferences are saved to `localStorage`.
 
-## Privacy
+Everything runs from `file://`, so you can just double-click `index.html`. The
+included `scripts/server.js` is needed only for the first-run setup wizard
+(`setup.html`) or if your browser blocks local video over `file://`.
 
-Everything stays on your computer. Your messages, media, and names are never
-uploaded, and they're never committed to this repo. They live in the git-ignored
-`personal_data/` folder. The only data in the repo is the fake demo.
+Run smoke checks after installing dev dependencies:
+
+```bash
+npm install
+npm run test:smoke
+```
 
 ---
 
-For the data format, build pipeline, and file layout, see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+## Quick start (demo, zero real data)
+
+```bash
+git clone <this-repo>
+cd twitter_project
+# open the demo straight away:
+#   double-click index.html
+# or, if your browser blocks local media over file://:
+node scripts/server.js      # -> http://localhost:8765
+```
+
+You'll get a 3-group synthetic demo. Regenerate the demo data anytime:
+
+```bash
+node scripts/make_sample.js     # writes data.sample.js + sample_media/
+```
+
+---
+
+## Using your own export
+
+Request your archive from X (Settings -> Your account -> Download an archive of
+your data) and unzip it. The group chat archive needs all three of these:
+
+- `direct-messages-group.js`: group chat conversations (full message content)
+- `direct-messages-group-headers.js`: group metadata that completes the
+  participant roster and join/leave/name events
+- `direct_messages_group_media/`: group chat media (photos and videos)
+
+*(1:1 DM files are ignored. This tool is group-chats only.)*
+
+### Setup wizard
+
+The wizard writes config, copies your files and media, runs the build, restores
+the group photo, and walks you through naming everyone, all from the browser. It
+needs the local server (writing files needs Node):
+
+```bash
+node scripts/server.js                 # -> http://localhost:8765
+# then open  http://localhost:8765/setup.html
+```
+
+1. Source: click Browse to pick your `direct-messages-group.js`, your
+   `direct-messages-group-headers.js`, and your media folder (all three
+   required; native file dialogs on Windows), then Build.
+2. Group *(optional)*: set the group name and photo (becomes the sidebar mark).
+3. People *(optional)*: each participant card shows sample messages and a few
+   pieces of media they shared (Twitter/X links excluded, since they don't help
+   you tell people apart). Name them, add a photo, and mark which one is you.
+4. Finish: saves everything and links to the archive.
+
+Everything the wizard writes lands in one git-ignored folder, `personal_data/`
+(`config.json`, the built `data.js`, `local.js`, the copied raw export under
+`source/`, copied `media/`, and `pfps/`). After setup, daily use is just
+double-clicking `index.html`.
+
+> Adding a newer export later? Just re-run the wizard. The build is merge-aware,
+> so your history accumulates and is never lost.
+
+### Naming participants
+
+X exports contain only numeric user IDs, so everyone shows as User 1, User 2,
+and so on by default. The setup wizard (above) is the easiest way to name
+everyone. You can always edit later in the People tab: rename, pick a color,
+upload a profile picture, and mark "This is me", all saved to `localStorage`
+(works from `file://`, no server). For a permanent local mapping you can also
+hand-edit `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` /
+`LOCAL_ME` / `LOCAL_GC`).
+
+---
+
+## Data schema
+
+`data.js` / `data.sample.js` define one global:
+
+```js
+window.CHAT_DATA = {
+  generatedAt: "ISO",
+  conversations: [
+    {
+      id, type: "group", title, participants: [ids], count,
+      msgs:  [ { i, s, t, x, u?, m?, k?, r? } ],   // id, sender, time(ms), text, urls, media, kind, reactions
+      events:[ { t, type, ... } ]                  // name/join/leave/create
+    },
+    ...
+  ]
+}
+```
+
+The viewer also accepts the older single-conversation shape
+(`{ conversationId, msgs, events }`) for backward compatibility.
+
+Private builds can omit known bad/export-only users by adding an
+`ignoredUsers: ["user-id"]` array to `personal_data/config.json` before running
+the wizard build, or by setting `window.LOCAL_IGNORED_USERS` in a gitignored
+local override.
+
+---
+
+## Project layout
+
+```
+index.html          app shell + script loading
+setup.html          first-run setup wizard (served)
+src/app.js          all UI logic (vanilla JS, no framework)
+src/styles.css      black + blue theme
+src/setup.js        setup-wizard logic
+src/setup.css       setup-wizard styles
+scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
+scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
+scripts/server.js   static server + setup-wizard API (range requests for video)
+lib/                Fuse.js + Chart.js (vendored, MIT)
+data.sample.js      committed synthetic demo data
+sample_media/       committed placeholder media
+docs/               architecture notes
+personal_data/      (git-ignored) wizard output: config.json, data.js, local.js,
+                    source/, media/, pfps/ (all your real, private data in one place)
+```
+
+Built with [Fuse.js](https://www.fusejs.io/) and
+[Chart.js](https://www.chartjs.org/) (both MIT, vendored under `lib/`).
+
+---
+
+## Privacy
+
+This repository is designed to be published without any private data. Real
+messages, media, profile pictures, names, and packaged archives are listed in
+[`.gitignore`](.gitignore). The only data committed is the fully synthetic
+sample.
