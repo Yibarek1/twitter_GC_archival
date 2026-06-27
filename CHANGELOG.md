@@ -2,7 +2,7 @@
 
 All notable changes to this project are recorded here.
 
-## v0.1.0 (2026-06-27)
+## v1.0.0 (2026-06-27)
 
 First public release.
 
@@ -25,4 +25,4 @@ First public release.
 - Synthetic demo data (`data.sample.js`) so the repository runs with no real
   data committed.
 
-[v0.1.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v0.1.0
+[v1.0.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.0
