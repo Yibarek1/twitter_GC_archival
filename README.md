@@ -1,5 +1,7 @@
 # Group Chat Archive
 
+[![CI](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml/badge.svg)](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml)
+
 A dependency-free, fully offline browser for Twitter/X group chat (group DM)
 exports. Drop in your export, run one build script, and explore years of group
 history with fuzzy search, a virtual timeline, a media gallery, year-in-review
@@ -13,6 +15,11 @@ internet. Have several group chats? A picker switches between them.
 
 ![Group Chat Archive search view with the black and blue theme, running on the synthetic demo data](docs/screenshot.png)
 
+A quick tour through search, the timeline, the media gallery, Hall of Fame, the
+Wrapped recap, and the stats dashboard (synthetic demo data):
+
+![Animated walkthrough of the Group Chat Archive: typing a fuzzy search, scrolling the virtual timeline, opening the media gallery, Hall of Fame, the Wrapped year-in-review slideshow, and the stats dashboard](docs/demo.gif)
+
 ---
 
 ## Features
@@ -22,8 +29,8 @@ internet. Have several group chats? A picker switches between them.
   views, saved searches, and CSV/JSON export.
 - Multiple group chats: a conversation picker switches between every group in
   your export. Every view is scoped to the selected group.
-- A virtual timeline that scrolls 100K+ messages smoothly, with a date scrubber
-  and jump-to-date.
+- A virtual timeline that scrolls 100K+ messages smoothly, with jump-to-date in
+  the Cmd/Ctrl-K command palette.
 - Gallery of every photo and video, with a lightbox.
 - Hall of Fame: most-reacted messages, podium and leaderboards by year.
 - Wrapped, an animated year-in-review slideshow.
@@ -47,6 +54,17 @@ npm run test:smoke
 ```
 
 ---
+
+## Requirements
+
+- Browsing an archive needs only a modern browser. No install, no Node, no
+  internet. Double-click `index.html`.
+- The setup wizard and the local server need [Node.js](https://nodejs.org) 18 or
+  newer (developed and CI-tested on Node 22, pinned in `.nvmrc`). They use only
+  Node's built-in modules, so there is nothing to `npm install` to run them.
+- `npm install` is needed only to run the test suite (Playwright + ESLint).
+- The wizard's Browse buttons open native file dialogs on Windows. On macOS and
+  Linux the wizard still works, but you paste the file and folder paths by hand.
 
 ## Quick start (demo, zero real data)
 
@@ -159,7 +177,7 @@ src/setup.css       setup-wizard styles
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
-lib/                Fuse.js + Chart.js (vendored, MIT)
+lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored
 data.sample.js      committed synthetic demo data
 sample_media/       committed placeholder media
 docs/               architecture notes
@@ -167,8 +185,9 @@ personal_data/      (git-ignored) wizard output: config.json, data.js, local.js,
                     source/, media/, pfps/ (all your real, private data in one place)
 ```
 
-Built with [Fuse.js](https://www.fusejs.io/) and
-[Chart.js](https://www.chartjs.org/) (both MIT, vendored under `lib/`).
+Built with [Fuse.js](https://www.fusejs.io/) (Apache-2.0) and
+[Chart.js](https://www.chartjs.org/) (MIT), both vendored under `lib/`. Full
+attribution is in [CREDITS.md](CREDITS.md).
 
 ---
 

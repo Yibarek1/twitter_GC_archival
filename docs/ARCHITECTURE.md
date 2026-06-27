@@ -1,4 +1,4 @@
-# Architecture — how the Group Chat Archive works
+# Architecture: how the Group Chat Archive works
 
 A short tour of the codebase for anyone reading or extending it. The whole thing
 is vanilla JavaScript with two vendored libraries (Fuse.js, Chart.js) and no
@@ -56,14 +56,14 @@ Server endpoints:
 
 | File | Role |
 |------|------|
-| `scripts/build.js` | Node script. Wizard-driven (requires `personal_data/config.json`; exits otherwise). Parses the group export file (`direct-messages-group.js`), folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and writes `personal_data/data.js`. When `config.headersJs` is set, also folds `direct-message-group-headers.js` — metadata only, so it adds no messages but completes each conversation's participant roster (senders/joiners with no surviving message) and join/leave/name events. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only — 1:1 DMs (id shape `a-b`) are skipped. |
+| `scripts/build.js` | Node script. Wizard-driven (requires `personal_data/config.json`; exits otherwise). Parses the group export file (`direct-messages-group.js`), folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and writes `personal_data/data.js`. When `config.headersJs` is set, also folds `direct-message-group-headers.js`, metadata only, so it adds no messages but completes each conversation's participant roster (senders/joiners with no surviving message) and join/leave/name events. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only, 1:1 DMs (id shape `a-b`) are skipped. |
 | `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `data.sample.js` (3 group chats, ~130 messages, tagged `__sample`) plus placeholder SVG media/avatars. Zero real data. |
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Loads `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/app.js`. |
 | `src/app.js` | The entire UI. See "Runtime model" below. |
 | `src/styles.css` | Black + blue theme, CSS variables for accent/density/intensity. |
-| `scripts/server.js` | Static file server with HTTP range support (for video) **plus** the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use — the app runs from `file://`. |
-| `lib/` | Vendored Fuse.js + Chart.js (both MIT). |
+| `scripts/server.js` | Static file server with HTTP range support (for video) **plus** the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use, the app runs from `file://`. |
+| `lib/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT). |
 
 ## Data schema (`window.CHAT_DATA`)
 
@@ -79,19 +79,19 @@ Server endpoints:
 }
 ```
 The viewer also accepts the legacy single-conversation shape
-(`{ conversationId, msgs, events }`) — `normalizeConvos()` wraps it into a
+(`{ conversationId, msgs, events }`), `normalizeConvos()` wraps it into a
 one-element `conversations` array.
 
 ## Runtime model (`app.js`)
 
 `src/app.js` is one IIFE. The key design idea behind multi-group support:
 
-- **`CONVOS`** — the full list of conversations (from `CHAT_DATA`).
-- **Active-conversation state** — `CONV`, `MSGS`, `EVENTS`, `N`, `LOWER`
+- **`CONVOS`**: the full list of conversations (from `CHAT_DATA`).
+- **Active-conversation state**: `CONV`, `MSGS`, `EVENTS`, `N`, `LOWER`
   (lowercased text cache), `ID2IDX`, `PARTS` (participants), `GENERIC`
   (`id → "User N"`). These are module-level `let`s that get **reassigned** when
   the conversation changes.
-- **`activateConversation(id, rerender)`** — the switch point. It loads the
+- **`activateConversation(id, rerender)`**: the switch point. It loads the
   conversation's messages into `MSGS`, rebuilds the search indexes
   (`rebuildIndexes()`), drops every derived cache and per-view state
   (`resetDerived()`), recomputes `PARTS`, assigns generic names, and (when
@@ -99,7 +99,7 @@ one-element `conversations` array.
   view.
 
 Because all views read from the same module-level `MSGS`/`PARTS`/caches, they
-become conversation-scoped "for free" — switching simply swaps the data under
+become conversation-scoped "for free", switching simply swaps the data under
 them and forces a re-render. The conversation picker (`renderConvPicker()`) is a
 `<select>` in the sidebar, shown only when there is more than one group.
 
@@ -122,12 +122,12 @@ wizard's "this is you" marker is `window.LOCAL_ME` (a default for `settings.me`)
 The shipped demo (`data.sample.js`) carries a `__sample` flag; any real build
 overrides `CHAT_DATA` without it. `app.js` reads this as `IS_SAMPLE` and shows a
 dismissible onboarding overlay (`maybeShowOnboarding()`) when the demo is loaded,
-or when real data is loaded but nobody is named/marked yet — linking to the setup
+or when real data is loaded but nobody is named/marked yet, linking to the setup
 wizard or the People tab.
 
 ### Views (registered in `setView`)
 Search, Timeline (virtualized), Gallery, Pinned, Hall of Fame, Wrapped, Capsule,
-Stats, Threads, Chains, Battles, People, Settings — plus Random Quote and the
+Stats, Threads, Chains, Battles, People, Settings, plus Random Quote and the
 ⌘K command palette.
 
 ### Local data

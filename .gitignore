@@ -28,21 +28,25 @@ gc_photo.jpg
 # Private local overrides (real names / profile pictures)
 names.local.js
 
-# Big packaged archive (multi-GB) — never commit
-THE_GC.zip
-THE_GC_V2.zip
+# Packaged export archives (multi-GB) — never commit
 *.zip
 
 # Raw export staging folder (real export files dropped here before setup)
 exports/
 
-# Editor / tool / AI session files — never published
+# Local environment overrides (the app needs none, but never commit one if added)
+.env
+.env.*
+
+# Editor / IDE / tool / AI session files — never published
 .claude/
 CLAUDE.md
 .autopilot/
+.superpowers/
+.vscode/
+.idea/
 
-# Working areas
-trash/
+# Dependencies
 node_modules/
 
 # Playwright test artifacts
@@ -55,9 +59,6 @@ PLAN.md
 
 # Brainstorming / design specs (work-in-progress notes, reference private data)
 docs/superpowers/
-
-# Session report (not part of the published app)
-SCHEDULED_TASK_RESULTS.md
 
 # Ship checklist (internal planning doc)
 final.md
