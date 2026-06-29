@@ -64,6 +64,11 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Form controls don't inherit font-family by default. Without this the sidebar
+   nav and unstyled buttons fall back to the browser default instead of the
+   theme font. */
+button, input, select, textarea { font-family: inherit; }
+
 ::selection { background: var(--accent-glow); }
 
 /* scrollbars */
