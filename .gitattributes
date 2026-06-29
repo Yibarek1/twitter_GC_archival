@@ -1,3 +1,12 @@
-# Shell launchers must stay LF so the shebang works on macOS/Linux.
+# Normalize all text to LF in the repo so a Windows clone doesn't churn diffs or
+# break line endings on macOS/Linux. Git auto-detects text vs binary.
+* text=auto
+
+# Shell launchers must stay LF in the working tree too, so the shebang works on
+# macOS/Linux even when checked out on Windows.
 *.command text eol=lf
 *.sh text eol=lf
+
+# Vendored binaries: leave bytes untouched.
+lib/*.min.js -text
+*.woff2 binary
