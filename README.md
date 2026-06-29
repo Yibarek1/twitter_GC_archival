@@ -69,8 +69,8 @@ npm run test:smoke
 ## Quick start (demo, zero real data)
 
 ```bash
-git clone <this-repo>
-cd twitter_project
+git clone https://github.com/yib7/twitter_GC_archival.git
+cd twitter_GC_archival
 # open the demo straight away:
 #   double-click index.html
 # or, if your browser blocks local media over file://:
@@ -101,7 +101,11 @@ your data) and unzip it. The group chat archive needs all three of these:
 
 The wizard writes config, copies your files and media, runs the build, restores
 the group photo, and walks you through naming everyone, all from the browser. It
-needs the local server (writing files needs Node):
+needs the local server (writing files needs Node).
+
+The quickest way to start it: double-click `start-setup.cmd` on Windows (or
+`start-setup.command` on macOS). It launches the server and opens the wizard, and
+closes itself when you close the browser tab. To start it by hand instead:
 
 ```bash
 node scripts/server.js                 # -> http://localhost:8765
@@ -178,6 +182,7 @@ scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored
+lib/fonts/          Plus Jakarta Sans (OFL-1.1), vendored for offline use
 data.sample.js      committed synthetic demo data
 sample_media/       committed placeholder media
 docs/               architecture notes
